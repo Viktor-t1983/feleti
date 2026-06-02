@@ -13,6 +13,12 @@
 - Реальный стенд FELETI-SMOK (R&D)
 - Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
 
+### Сессия 5 — финал (2026-06-02)
+- Создан `RECOMMENDATIONS.md` с приоритетами на сессию 6.
+- Обновлены SKILL.md: `design-system` (v0.2.0 — ссылки на новые скиллы), `research-competitor` (v0.2.0 — knowledge-search).
+- Созданы SKILL.md: `batches-lifecycle`, `telemetry-websocket`, `knowledge-search`.
+- 6/10 SKILL.md максимально заполнены + 4 уже были готовы.
+
 ### Added (сессия 5, 2026-06-02 — backend, часть 4: knowledge base)
 - **API v1: knowledge** (`/api/v1/knowledge`):
   - `GET /knowledge` — список с пагинацией + фильтры по `category`, `tag`, `manufacturer_id`, `is_published`.

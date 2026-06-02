@@ -1,53 +1,60 @@
 # SKILL: add-recipe
 
 > Создание и редактирование рецепта копчения. Используй при добавлении нового рецепта в базу или редактировании существующего.
+> Загружай совместно с `recipe-calc` для расчёта БЖУ/себестоимости.
 
-## 1. Структура рецепта
+## 1. Структура рецепта (реальная)
 
 ```python
 Recipe:
   - id: int
   - product_id: int
   - name: str                        # "Докторская ГОСТ"
-  - slug: str                        # "doktorskaya-gost"
-  - current_version_id: int
-  - status: enum[draft|pending|approved|archived]
-  - created_by, created_at
+  - slug: str                        # "doktorskaya-gost", уникальный, ^[a-z0-9-]+$
+  - current_version_id: int          # FK на RecipeVersion
+  - status: enum[draft|pending|approved|rejected|archived]
+  - description: str
+  - tags: list[str]
+  - created_by_id, created_at, updated_at
 
 RecipeVersion (иммутабельный):
   - id, recipe_id, version_number, parent_version_id
   - program: list[ProgramPhase]      # фазы копчения
-  - brine: BrineRecipe               # посол
-  - ingredients: list[RecipeIngredient]  # с весами
-  - yield_percent, losses_percent
-  - notes: str
-  - verified: bool                   # проверен технологом
-  - verified_by, verified_at
-  - created_by, created_at
+  - brine: dict | None               # посол
+  - ingredients: list[dict]          # [{"ingredient_id": 1, "mass_kg": 5.0, "name": "Свинина"}]
+  - yield_percent, losses_percent    # числа (%)
+  - bju_per_100g: dict | None        # {protein, fat, carbs, kcal}
+  - cost_per_kg: float | None
+  - notes, gost, source
+  - verified, verified_by_id, verified_at
+  - status: enum[draft|pending|approved|rejected|archived]
+  - created_by_id, created_at
 
-ProgramPhase:
+ProgramPhase (внутри RecipeVersion.program, JSON-список):
   - index, name (Подсушка/Копчение/Варка/Охлаждение)
   - duration_min
-  - target_t_chamber, target_t_product
+  - t_chamber, t_product
   - humidity_percent
   - smoke: none|light|medium|heavy
   - wood_species: ольха|бук|дуб|яблоня|вишня|...
   - wood_form: щепа|опилки|стружка
   - electro_voltage_kv: float        # 0 = выкл
-  - electro_current_ua: float
   - fan_speed_percent: int
   - transition: time|product_temp|delta_t
 
-BrineRecipe:
-  - method: сухой|мокрый|шприцевание|комби
+Brine (внутри RecipeVersion.brine, JSON-dict):
+  - method: сухой|мокрый|шприцевание|комбинированный|смешанный
   - salt_percent, sugar_percent
   - nitrite_ppm, nitrate_ppm
   - spices: list[str]
   - duration_hours, temp_c
-  - notes
 
-RecipeIngredient:
-  - ingredient_id, weight_g, percent, note
+RecipeIngredient (внутри RecipeVersion.ingredients, JSON-список):
+  - ingredient_id: int
+  - mass_kg: float | None            # абсолютная масса
+  - mass_g: float | None             # альтернативно
+  - percent: float | None            # % от общей массы (для соли, специй)
+  - name: str | None                 # денормализованное имя (для UI)
 ```
 
 ## 2. Алгоритм добавления рецепта
@@ -65,12 +72,13 @@ RecipeIngredient:
 3. **Проверка:** указать источник и `verified: false` (до проверки технологом).
 
 ### 2.2. Создание в коде
-1. **Найти `product_id`** — если продукта нет, создать в `seed/products.json`.
-2. **Создать `Recipe`** со статусом `draft`.
-3. **Создать `RecipeVersion v1`** с полной программой.
-4. **Привязать** `Recipe.current_version_id = v1.id`.
-5. **Запустить** `services/recipe_calc.py` для расчёта БЖУ и себестоимости.
-6. **Сохранить** в seed `data/seed/recipes/<slug>.json`.
+1. **Найти `product_id`** — если продукта нет, создать в `app/scripts/seed.py` (`PRODUCTS`).
+2. **Создать `Recipe`** со статусом `draft` через `POST /api/v1/recipes`.
+3. **Создать `RecipeVersion v1`** через `POST /api/v1/recipes/{id}/versions` (с указанием `parent_version_id=null`).
+4. **Привязать** `Recipe.current_version_id = v1.id` (делается автоматически).
+5. **Запустить** `GET /api/v1/recipes/{id}/calc` для расчёта БЖУ/себестоимости.
+6. **Сохранить** результат в `RecipeVersion.bju_per_100g` и `cost_per_kg` через `PATCH /versions/{vid}`.
+7. **Сидировать** для повторного использования: добавить в `app/scripts/seed.py` (`RECIPES`).
 
 ### 2.3. Шаблон JSON (для seed)
 ```json
@@ -78,22 +86,22 @@ RecipeIngredient:
   "name": "Докторская ГОСТ",
   "slug": "doktorskaya-gost",
   "category": "колбаса вареная",
-  "product": "Докторская (колбаса)",
+  "product_slug": "doktorskaya-kolbasa",
   "yield_percent": 108,
   "losses_percent": -8,
   "source": "ГОСТ Р 52196-2011",
   "verified": false,
   "ingredients": [
-    { "name": "Говядина 1с", "percent": 25, "note": "в фарш" },
-    { "name": "Свинина п/ж", "percent": 35 },
-    { "name": "Шпик", "percent": 15 },
-    { "name": "Молоко сухое", "percent": 2 },
-    { "name": "Яйца", "percent": 2 },
-    { "name": "Соль", "percent": 2.5 },
-    { "name": "Нитритная соль", "percent": 0.5 },
-    { "name": "Сахар", "percent": 0.2 },
-    { "name": "Мускатный орех", "percent": 0.05 },
-    { "name": "Вода/лёд", "percent": 17.75 }
+    { "ingredient_slug": "govyadina-1s", "percent": 25 },
+    { "ingredient_slug": "svinina-pzh", "percent": 35 },
+    { "ingredient_slug": "shpik", "percent": 15 },
+    { "ingredient_slug": "moloko-sukhoe", "percent": 2 },
+    { "ingredient_slug": "yaitsa", "percent": 2 },
+    { "ingredient_slug": "sol-pischevaya", "percent": 2.5 },
+    { "ingredient_slug": "nitritnaya-sol", "percent": 0.5 },
+    { "ingredient_slug": "sahar", "percent": 0.2 },
+    { "ingredient_slug": "muskatny-oreh", "percent": 0.05 },
+    { "ingredient_slug": "voda-led", "percent": 17.75 }
   ],
   "brine": null,
   "program": [
@@ -117,6 +125,7 @@ RecipeIngredient:
 | **Горячее** | 40–110 | 40–95 | 30 мин – 6 ч | средний/сильный | часто |
 | **Полугорячее** | 30–60 | 30–55 | 1–4 ч | средний | часто |
 | **Электростатическое** | 18–60 | 18–55 | 30–120 мин | лёгкий, 10–30 кВ | обязательно |
+| **Универсальное** | 18–110 | 18–95 | 30 мин – 14 сут | любой | опц. |
 
 ## 4. Древесина для копчения (reference)
 
@@ -144,59 +153,103 @@ RecipeIngredient:
 - **Электростатическое (6):** Скумбрия, Салака, Килька, Масляная, Ставрида, Курица.
 - **Сыры/прочее (5):** Сыр копчёный, Сыр колбасный, Сало, Масло, Орехи.
 
-## 6. Расчёт БЖУ и себестоимости
+## 6. Расчёт БЖУ и себестоимости (через /calc endpoint)
 
-```python
-def calc_bju(ingredients: list[RecipeIngredient]) -> dict:
-    """Вернёт {protein, fat, carbs, kcal} на 100г."""
-    total_weight = sum(i.weight_g for i in ingredients)
-    protein = sum(i.weight_g * i.ingredient.protein_per_100g for i in ingredients) / total_weight * 100
-    fat     = sum(i.weight_g * i.ingredient.fat_per_100g     for i in ingredients) / total_weight * 100
-    carbs   = sum(i.weight_g * i.ingredient.carbs_per_100g   for i in ingredients) / total_weight * 100
-    kcal    = protein * 4 + fat * 9 + carbs * 4
-    return {"protein": protein, "fat": fat, "carbs": carbs, "kcal": kcal}
-
-def calc_cost(ingredients, yield_percent) -> Decimal:
-    cost = sum(i.weight_g * i.ingredient.price_per_kg / 1000 for i in ingredients)
-    return cost / (yield_percent / 100)
+### 6.1. Endpoint
 ```
+GET /api/v1/recipes/{recipe_id}/calc                    # для current version
+GET /api/v1/recipes/{recipe_id}/versions/{version_id}/calc  # для конкретной версии
+```
+
+### 6.2. Логика (services/recipe_calc.py)
+- **compute_bju(ingredients)**: суммирует БЖУ ингредиентов и нормирует на 100 г.
+- **compute_cost(ingredients)**: суммирует `price_per_kg * mass_kg`.
+- **compute_yield(ingredients, program, brine_method)**: учитывает потери копчения + посола.
+
+### 6.3. Дефолтные потери по типу копчения
+| Тип | Потери, % |
+|---|---|
+| Горячее | 32 |
+| Полугорячее | 25 |
+| Холодное | 12 |
+| Электро | 8 |
+| Универсальное | 25 |
+
+### 6.4. Доп. потери при посоле
+| Метод | Потери, % |
+|---|---|
+| Сухой | 4 |
+| Мокрый | 2 |
+| Шприцевание | 1 |
+| Комбинированный | 3 |
+| Смешанный | 3 |
+
+### 6.5. Пример вычисления
+- Свинина 5 кг + Говядина 3 кг + Соль 0.15 кг = 8.15 кг сырья.
+- Горячее копчение + сухой посол = 32% + 4% = 36% потерь.
+- Готовый продукт: 8.15 × (1 − 0.36) = 5.216 кг.
+- Себестоимость сырья: (5×420 + 3×560 + 0.15×15) / 8.15 = 464.08 BYN/кг.
+- Себестоимость готового: 464.08 / (1 − 0.36) = 725.12 BYN/кг.
+
+**Smoke-test пройден** (см. сессию 5, коммит `4cb8852`).
 
 ## 7. Версионирование
 
-Создание новой версии:
-1. Открыть `Recipe` (любой статус).
-2. Создать `RecipeVersion` со статусом `draft`, `parent_version_id = current_version.id`, `version_number = current.version_number + 1`.
-3. Отредактировать поля.
-4. `submit_for_approval` → status: `pending`.
-5. Апрув (admin/старший технолог) → status: `approved`, `Recipe.current_version_id = new.id`.
-6. Старая версия → `archived` (опционально).
+### 7.1. Создание новой версии
+```
+POST /api/v1/recipes/{recipe_id}/versions
+{
+  "parent_version_id": 1,         // ID предыдущей версии
+  "program": [...],               // новая программа
+  "brine": {...},
+  "ingredients": [...],
+  "yield_percent": 110,
+  "losses_percent": -10,
+  "notes": "Уменьшил t варки на 3°C",
+  "gost": "ГОСТ Р 52196-2011"
+}
+```
+- `version_number` авто-инкремент (1, 2, 3, ...).
+- Новая версия создаётся в статусе `draft`.
 
-Diff:
-```python
-GET /api/v1/recipes/{id}/diff?v1=2&v2=3
-→ {"changed_fields": ["program[0].t_chamber", "ingredients[+1]", "notes"], "old": {...}, "new": {...}}
+### 7.2. Апрув (TODO — не реализован)
+```
+POST /api/v1/recipes/{id}/versions/{vid}/approve   # TODO
+{ "comment": "OK, проверил в цехе" }
+```
+- Меняет `RecipeVersion.status` на `approved`.
+- Устанавливает `Recipe.current_version_id = vid`.
+- Старая current → `archived` (TODO автоматический переход).
+
+### 7.3. Diff (TODO)
+```
+GET /api/v1/recipes/{id}/diff?v1=2&v2=3   # TODO
+→ {"changed_fields": ["program[0].t_chamber", "ingredients[+1]", "notes"],
+   "old": {...}, "new": {...}}
 ```
 
 ## 8. Чек-лист перед сохранением
 
-- [ ] Название корректное, slug уникален.
+- [ ] Название корректное, slug уникален и `^[a-z0-9-]+$`.
 - [ ] Категория из справочника.
-- [ ] Ингредиенты — из `data/seed/ingredients.json` (если нет — создать).
+- [ ] Ингредиенты — из `seed/ingredients` (если нет — создать).
 - [ ] Программа — все фазы заполнены (duration_min > 0, t_chamber разумная).
 - [ ] Выход/потери указаны.
 - [ ] Источник указан (`source`).
 - [ ] `verified: false` (до проверки технологом).
-- [ ] JSON валиден, загружается через `RecipeVersion.from_json()`.
+- [ ] JSON валиден, загружается через seed.
 - [ ] БЖУ и себестоимость рассчитаны и сохранены в `bju_per_100g` и `cost_per_kg`.
 - [ ] `notes` содержит контрольные точки (t в центре, время посола, и т.д.).
 
 ## 9. Связь с другими скиллами
 
 - `smoke-platform` — общие правила.
+- `recipe-calc` — для расчёта БЖУ/себестоимости (services/recipe_calc.py).
 - `seed-data` — для сидирования новых рецептов.
 - `research-competitor` — для парсинга рецептов из каталогов конкурентов.
+- `batches-lifecycle` — для запуска партии по рецепту.
 
 ---
 
-**Версия:** 0.1.0
+**Версия:** 0.2.0 (2026-06-02)
 **Загружай:** при создании/редактировании рецепта.

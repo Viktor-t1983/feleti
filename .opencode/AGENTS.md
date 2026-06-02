@@ -63,9 +63,12 @@
 | Скилл | Когда использовать |
 |---|---|
 | `smoke-platform` | Любая задача по FELETI-SMOK — общие правила, конвенции, контекст |
-| `add-recipe` | Создание/редактирование рецепта (код + данные) |
+| `add-recipe` | Создание/редактирование рецепта (код + данные) + /calc |
 | `add-chamber` | Добавление новой камеры в каталог (модель, ТТХ, драйвер) |
-| `camera-driver` | Работа с драйверами камер (Kinco, Varmen, Fessmann, ...) |
+| `camera-driver` | Работа с драйверами камер (Kinco, Varmen, Fessmann, ...) + ChamberGateway |
+| `batches-lifecycle` | Создание/запуск партий, интеграция с ChamberGateway |
+| `telemetry-websocket` | Live-стрим телеметрии через WebSocket + REST |
+| `knowledge-search` | CRUD статей базы знаний + полнотекстовый поиск |
 | `seed-data` | Сидирование начальных данных (производители, камеры, рецепты) |
 | `design-system` | Брендирование UI (цвета, шрифты, компоненты) |
 | `research-competitor` | Парсинг сайта/каталога конкурента (Ижица, Fessmann, ...) |
@@ -76,36 +79,37 @@
 
 ### 4.1. Создать новую модель
 ```
-1. backend/app/models/<name>.py — SQLAlchemy модель
-2. Зарегистрировать в backend/app/db/base.py
+1. backend/app/models/<name>.py — SQLAlchemy 2.0 модель
+2. Зарегистрировать в backend/app/models/__init__.py (импорт для Alembic)
 3. backend/app/schemas/<name>.py — Pydantic v2 DTO
-4. alembic revision --autogenerate -m "add <name>"
-5. alembic upgrade head
-6. backend/app/api/v1/<name>.py — роутер
-7. backend/app/services/<name>.py — бизнес-логика
-8. (если нужно) backend/tests/test_<name>.py
-9. (если нужно) обновить frontend/...
-10. CHANGELOG.md, TODO.md
+4. (если нужен endpoint) backend/app/api/v1/endpoints/<name>.py — роутер
+5. Зарегистрировать роутер в backend/app/api/v1/__init__.py
+6. (если нужна логика) backend/app/services/<name>.py
+7. alembic revision --autogenerate -m "add <name>" (нужен Docker)
+8. alembic upgrade head
+9. (если нужно) backend/tests/test_<name>.py
+10. (если нужно) добавить seed-данные в app/scripts/seed.py
+11. CHANGELOG.md, TODO.md
 ```
 
 ### 4.2. Создать новый драйвер камеры
 ```
 1. docs/cameras/<manufacturer>/SPEC.md — спецификация
-2. backend/app/drivers/<name>.py — реализация ChamberDriver
-3. Зарегистрировать в backend/app/drivers/__init__.py
-4. Добавить manufacturer + chamber в seed
+2. backend/app/drivers/<name>.py — реализация ChamberDriver (см. SKILL camera-driver)
+3. Зарегистрировать в backend/app/drivers/__init__.py через @register("Name")
+4. Добавить manufacturer + chamber в app/scripts/seed.py
 5. (если нужно) тесты с моком
 6. CHANGELOG.md, TODO.md
 ```
 
 ### 4.3. Добавить endpoint
 ```
-1. backend/app/api/v1/<resource>.py — роутер
-2. Подключить в backend/app/main.py
+1. backend/app/api/v1/endpoints/<resource>.py — роутер
+2. Зарегистрировать в backend/app/api/v1/__init__.py (api_router.include_router)
 3. (если нужна логика) backend/app/services/<resource>.py
 4. (если нужна схема) backend/app/schemas/<resource>.py
 5. Тесты
-6. Документация (auto-generated OpenAPI)
+6. Документация (auto-generated OpenAPI доступен по /api/v1/docs)
 7. CHANGELOG.md
 ```
 

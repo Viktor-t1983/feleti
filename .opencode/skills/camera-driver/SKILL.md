@@ -473,7 +473,103 @@ async def test_connect_success(driver, monkeypatch):
     assert driver._connected is True
 ```
 
-## 7. Чек-лист при создании драйвера
+## 7. ChamberGateway (уровень выше драйвера)
+
+> Реализован в `backend/app/services/chamber_gateway.py` (сессия 5).
+
+`ChamberGateway` — singleton, абстрагирует работу с пулом драйверов. UI/Endpoints не работают с драйверами напрямую — только через gateway.
+
+### 7.1. Архитектура
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  FastAPI endpoints (batches, telemetry, ...)              │
+│  Annotated[ChamberGateway, Depends(get_chamber_gateway)]  │
+└──────────────────┬───────────────────────────────────────┘
+                   │
+┌──────────────────▼───────────────────────────────────────┐
+│  ChamberGateway (singleton)                               │
+│  ├─ _drivers: dict[int, ChamberDriver]   # пул по chamber_id│
+│  ├─ _buffer:  dict[int, deque[Sample]]   # 3600 точек/камера│
+│  ├─ _subscribers: dict[int, list[Queue]] # fan-out для WS   │
+│  └─ _tasks:   dict[int, asyncio.Task]    # telemetry loop    │
+└──────────────────┬───────────────────────────────────────┘
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+   SimulatedDriver  VarmenDriver  FELETI_SMOKDriver  ...
+```
+
+### 7.2. Публичный API
+
+```python
+class ChamberGateway:
+    async def get_driver(chamber_id, driver_class, connection) -> ChamberDriver
+    async def release(chamber_id) -> None
+    async def shutdown() -> None
+
+    # Управление партией
+    async def start_batch(chamber_id, driver_class, connection, recipe_program) -> None
+    async def pause_batch(chamber_id) -> None
+    async def resume_batch(chamber_id) -> None
+    async def stop_batch(chamber_id) -> None
+
+    # Телеметрия
+    async def get_telemetry(chamber_id) -> ChamberTelemetry
+    async def get_status(chamber_id) -> dict
+    def latest_telemetry(chamber_id) -> ChamberTelemetry | None
+    def telemetry_history(chamber_id, limit=600) -> list[ChamberTelemetry]
+
+    # Подписки
+    def subscribe(chamber_id) -> asyncio.Queue[ChamberTelemetry]
+    def unsubscribe(chamber_id, queue) -> None
+
+    @staticmethod
+    def available_drivers() -> list[str]
+```
+
+### 7.3. Особенности реализации
+
+- **Lazy init**: драйвер создаётся при первом обращении, не при старте gateway.
+- **Per-chamber Lock**: `asyncio.Lock` на каждую камеру, защита от двойного connect.
+- **Auto-reconnect**: при ошибке `get_telemetry` — `await asyncio.sleep(1.0)` и повтор.
+- **Кольцевой буфер**: `deque(maxlen=3600)` — 1 час при 1 Hz.
+- **Fan-out**: каждый подписчик получает свою `asyncio.Queue(maxsize=120)`, медленный подписчик теряет точки.
+- **Singleton**: `get_chamber_gateway()` — async singleton, инстанс на всё приложение.
+- **Shutdown**: TODO вызвать в FastAPI lifespan (`app/main.py`).
+
+### 7.4. Интеграция в FastAPI endpoint
+
+```python
+from app.services.chamber_gateway import ChamberGateway, get_chamber_gateway
+from typing import Annotated
+from fastapi import Depends
+
+@router.post("/batches/{batch_id}/start")
+async def start_batch(
+    batch_id: int,
+    db: DBSession,
+    user: CurrentUser,
+    gateway: Annotated[ChamberGateway, Depends(get_chamber_gateway)],
+) -> BatchRead:
+    # ... используем gateway.start_batch(...)
+    pass
+```
+
+### 7.5. Когда НЕЛЬЗЯ напрямую работать с драйвером
+
+- ❌ Из endpoint'ов — только через gateway.
+- ❌ Создавать инстанс драйвера руками — `create_driver()` только внутри gateway.
+- ❌ Хранить ссылку на драйвер в endpoint или request scope.
+
+### 7.6. TODO для будущих сессий
+
+- [ ] Подключить Redis pub/sub для синхронизации буфера между процессами (масштабирование).
+- [ ] Persist telemetry в `TelemetryReading` и `BatchTelemetry` (для исторического анализа).
+- [ ] Auto-recovery для драйверов при обрыве (exponential backoff).
+- [ ] Метрики в Prometheus: кол-во активных драйверов, latency get_telemetry, размер буфера.
+
+## 8. Чек-лист при создании драйвера
 
 - [ ] Файл `backend/app/drivers/<name>.py` создан.
 - [ ] Наследует от `ChamberDriver`.
@@ -482,20 +578,22 @@ async def test_connect_success(driver, monkeypatch):
 - [ ] Timeout на каждую операцию (нельзя блокировать навсегда).
 - [ ] Ошибки — специфичные исключения (`ConnectionError`, `ModbusException`).
 - [ ] Reconnect при обрыве (exponential backoff).
-- [ ] Зарегистрирован в `__init__.py` (DRIVERS dict).
+- [ ] Зарегистрирован в `__init__.py` через `@register("Name")` (не DRIVERS dict).
 - [ ] Карта регистров задокументирована в `docs/cameras/<manufacturer>/REGISTER_MAP.md`.
 - [ ] Unit-тесты (с моком).
 - [ ] Integration-тест с `SimulatedDriver` для проверки верхнего уровня.
-- [ ] Логирование через `loguru` (не print).
-- [ ] Telemetry: `ts` — UTC с timezone.
+- [ ] Логирование через `logging` (не print, не loguru пока).
+- [ ] Telemetry: `ts` — UTC (`datetime.utcnow()` или `datetime.now(timezone.utc).replace(tzinfo=None)`).
 
-## 8. Связь с другими скиллами
+## 9. Связь с другими скиллами
 
 - `smoke-platform` — общие правила.
 - `add-chamber` — для регистрации камеры в каталоге.
 - `seed-data` — для сидирования камер.
+- `batches-lifecycle` — для управления партиями через gateway.
+- `telemetry-websocket` — для live-стрима из gateway.
 
 ---
 
-**Версия:** 0.1.0
+**Версия:** 0.2.0 (2026-06-02)
 **Загружай:** при создании/отладке драйвера камеры.

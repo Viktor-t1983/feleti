@@ -1,273 +1,197 @@
 # SKILL: seed-data
 
-> Сидирование начальных данных в БД. Используй при первоначальной настройке, добавлении каталога или миграции данных.
+> Сидирование начальных данных в БД. Используй при первоначальной настройке, добавлении/изменении каталога.
+> Загружай совместно с `add-chamber` или `add-recipe` если добавляешь новые сущности.
 
-## 1. Структура seed-данных
+## 1. Текущая реализация
+
+Seed реализован **in-memory** в одном Python-файле, не через JSON.
 
 ```
-data/seed/
-├── manufacturers.json          # 9 производителей
-├── chambers/                   # камеры по slug
-│   ├── ijiza-varmen-1.json
-│   ├── ijiza-utr-250.json
-│   ├── mauting-tunnel-4.json
-│   ├── fessmann-t1900.json
-│   ├── kerres-kk-2800.json
-│   ├── agros-universal-200.json
-│   ├── reich-thermo-150.json
-│   ├── vemag-cooker-300.json
-│   ├── vsd-tec-z115.json
-│   └── feleti-smok-profi-250.json
-├── products/                   # продукты (изделия)
-│   ├── doktorskaya-kolbasa.json
-│   ├── molochnaya-kolbasa.json
-│   ├── skumbriya-gk.json
-│   └── ...
-├── ingredients/                # ингредиенты + щёпа
-│   ├── govyadina-1s.json
-│   ├── sviniya-pzh.json
-│   ├── shpiк.json
-│   ├── sol-pischevaya.json
-│   ├── nitritnaya-sol.json
-│   ├── schepa-olha.json
-│   ├── schepa-buk.json
-│   ├── schepa-dub.json
-│   ├── schepa-yablonya.json
-│   └── ...
-├── recipes/                    # рецепты (50+)
-│   ├── doktorskaya-gost.json
-│   ├── molochnaya-gost.json
-│   ├── skumbriya-gk.json
-│   ├── semga-hk.json
-│   ├── skumbriya-elektro.json
-│   └── ...
-├── brines/                     # типовые посолы
-│   ├── suhoy-dlya-okoroka.json
-│   ├── mokryy-dlya-ryby.json
-│   └── ...
-├── knowledge/                  # статьи базы знаний
-│   ├── vidy-kopcheniya.md
-│   ├── drevesina-dlya-kopcheniya.md
-│   ├── elektrostaticheskoe-kopchenie.md
-│   ├── reshenie-problem.md
-│   ├── gost-kolbasy.md
-│   └── ...
-└── users.json                  # demo-пользователи
+backend/app/scripts/
+├── __init__.py
+└── seed.py                        # ← идемпотентный сидер
 ```
 
-## 2. Алгоритм сидирования
+**Запуск:** `cd backend && python -m app.scripts.seed` (или через Docker).
 
-### 2.1. Через Python-скрипт
-`backend/app/scripts/seed.py`:
+**Идемпотентность:** все сущности вставляются по `slug`/`email`. Если уже есть — пропускается.
+
+## 2. Структура seed.py
 
 ```python
-import asyncio
-import json
-from pathlib import Path
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.session import async_session_maker
-from app.models.manufacturer import Manufacturer
-from app.models.chamber import Chamber
-# ...
+# Константы в начале файла:
+MANUFACTURERS: list[dict] = [...]  # 7 производителей
+CHAMBERS: dict[str, dict] = {...}  # по slug
+PRODUCTS: list[dict] = [...]       # 8 продуктов
+INGREDIENTS: list[dict] = [...]    # 6 ингредиентов
+USERS: list[dict] = [...]          # 3 demo-пользователя
 
-SEED_DIR = Path(__file__).parent.parent.parent / "data" / "seed"
-
-async def seed_manufacturers(session: AsyncSession):
-    data = json.loads((SEED_DIR / "manufacturers.json").read_text(encoding="utf-8"))
-    for item in data:
-        m = Manufacturer(**item)
-        session.add(m)
-    await session.commit()
-
-async def seed_chambers(session: AsyncSession):
-    for file in (SEED_DIR / "chambers").glob("*.json"):
-        item = json.loads(file.read_text(encoding="utf-8"))
-        # Resolve manufacturer_id by name
-        result = await session.execute(
-            select(Manufacturer).where(Manufacturer.name == item.pop("manufacturer"))
-        )
-        manufacturer = result.scalar_one()
-        c = Chamber(manufacturer_id=manufacturer.id, **item)
-        session.add(c)
-    await session.commit()
-
-async def main():
-    async with async_session_maker() as session:
-        await seed_manufacturers(session)
-        await seed_chambers(session)
-        # await seed_products(session)
-        # await seed_ingredients(session)
-        # await seed_recipes(session)
-        # await seed_users(session)
-    print("✅ Seed complete")
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# Анти-дубликаты (вставленные slug'и за сессию):
+_inserted: set[str] = set()
 ```
 
-### 2.2. Через Alembic (data migration)
+**Шаблон сущности** (на примере производителя):
 ```python
-# alembic/versions/xxxx_seed_initial_data.py
-def upgrade():
-    op.bulk_insert(manufacturers_table, [...])
-    op.bulk_insert(chambers_table, [...])
-    # ...
-
-def downgrade():
-    op.execute("DELETE FROM chambers")
-    op.execute("DELETE FROM manufacturers")
+{
+    "name": "Ижица",
+    "slug": "ijiza",
+    "country": "Россия",
+    "website": "https://ijiza.ru",
+    "description": "...",
+    "is_our_brand": False,
+    "is_competitor": True,
+    "sort_order": 10,
+    "logo_url": None,
+}
 ```
 
-## 3. Производители (9 штук)
-
-```json
-[
-  { "name": "Ижица", "country": "Россия", "city": "Ижевск", "website": "https://ijiza.ru", "founded": 2000, "description": "Ведущий российский производитель коптильных камер. Электростатическое копчение." },
-  { "name": "FELETI-SMOK", "country": "Беларусь", "city": "Брест", "website": "https://feleti.by", "founded": 2026, "description": "Собственное производство FELETI. Profi/Industrial B2B. Kinco + свой модуль." },
-  { "name": "Mauting", "country": "Чехия", "city": "Брно", "website": "https://mauting.com", "founded": 1954, "description": "Премиум-туннели для крупных производств." },
-  { "name": "Fessmann", "country": "Германия", "city": "Вайнгартен", "website": "https://fessmann.com", "founded": 1922, "description": "Премиум-камеры с FES.APP mobile и Turbomat." },
-  { "name": "Kerres", "country": "Германия", "city": "Бёблинген", "website": "https://kerres.de", "founded": 1965, "description": "Jet Smoke, Hybrid Airflow. Премиум-сегмент." },
-  { "name": "AGROS", "country": "Словения", "city": "Любляна", "website": "https://agros.si", "founded": 1985, "description": "Средний сегмент. Хорошее соотношение цена/качество." },
-  { "name": "Reich", "country": "Германия", "city": "Зинсхайм", "website": "https://reich-thermoprozesstechnik.de", "founded": 1970, "description": "Термокамеры среднего сегмента." },
-  { "name": "Vemag", "country": "Германия", "city": "Баден-Баден", "website": "https://vemag.de", "founded": 1948, "description": "Наполнители + термокамеры." },
-  { "name": "VSD TEC", "country": "Казахстан", "city": "Алматы", "website": "https://vsd-tec.kz", "founded": 2005, "description": "Бюджетный сегмент. Термокамеры + дымогенераторы." }
-]
-```
-
-## 4. Камеры (10+ моделей)
-
-Минимум по одной от каждого производителя. Полный список — в `data/seed/chambers/`.
-
-## 5. Продукты (30+)
-
-```json
-[
-  { "name": "Докторская (колбаса)", "category": "колбаса вареная" },
-  { "name": "Молочная (колбаса)", "category": "колбаса вареная" },
-  { "name": "Краковская (колбаса)", "category": "колбаса полукопченая" },
-  { "name": "Сервелат", "category": "колбаса полукопченая" },
-  { "name": "Суджук", "category": "колбаса сырокопченая" },
-  { "name": "Салями", "category": "колбаса сырокопченая" },
-  { "name": "Буженина", "category": "мясо" },
-  { "name": "Карбонад", "category": "мясо" },
-  { "name": "Грудинка", "category": "мясо" },
-  { "name": "Балык", "category": "мясо" },
-  { "name": "Курица копченая", "category": "птица" },
-  { "name": "Утка копченая", "category": "птица" },
-  { "name": "Индейка копченая", "category": "птица" },
-  { "name": "Скумбрия г/к", "category": "рыба горячего копчения" },
-  { "name": "Салака г/к", "category": "рыба горячего копчения" },
-  { "name": "Килька г/к", "category": "рыба горячего копчения" },
-  { "name": "Сельдь г/к", "category": "рыба горячего копчения" },
-  { "name": "Треска г/к", "category": "рыба горячего копчения" },
-  { "name": "Форель г/к", "category": "рыба горячего копчения" },
-  { "name": "Осётр г/к", "category": "рыба горячего копчения" },
-  { "name": "Сёмга х/к", "category": "рыба холодного копчения" },
-  { "name": "Форель х/к", "category": "рыба холодного копчения" },
-  { "name": "Палтус х/к", "category": "рыба холодного копчения" },
-  { "name": "Скумбрия электро", "category": "рыба электростатического копчения" },
-  { "name": "Салака электро", "category": "рыба электростатического копчения" },
-  { "name": "Килька электро", "category": "рыба электростатического копчения" },
-  { "name": "Масляная электро", "category": "рыба электростатического копчения" },
-  { "name": "Сыр копченый", "category": "сыр" },
-  { "name": "Сыр колбасный копченый", "category": "сыр" },
-  { "name": "Сало копченое", "category": "прочее" },
-  { "name": "Масло сливочное копченое", "category": "прочее" },
-  { "name": "Орехи копченые", "category": "прочее" }
-]
-```
-
-## 6. Ингредиенты (30+)
-
-```json
-[
-  { "name": "Говядина 1 сорт", "type": "мясо", "protein_per_100g": 18.0, "fat_per_100g": 12.0, "carbs_per_100g": 0, "kcal_per_100g": 180, "price_per_kg": 600 },
-  { "name": "Свинина полужирная", "type": "мясо", "protein_per_100g": 16.0, "fat_per_100g": 21.0, "carbs_per_100g": 0, "kcal_per_100g": 250, "price_per_kg": 350 },
-  { "name": "Шпик боковой", "type": "мясо", "protein_per_100g": 2.0, "fat_per_100g": 90.0, "carbs_per_100g": 0, "kcal_per_100g": 820, "price_per_kg": 250 },
-  { "name": "Соль поваренная", "type": "соль", "protein_per_100g": 0, "fat_per_100g": 0, "carbs_per_100g": 0, "kcal_per_100g": 0, "price_per_kg": 30 },
-  { "name": "Нитритная соль", "type": "соль", "protein_per_100g": 0, "fat_per_100g": 0, "carbs_per_100g": 0, "kcal_per_100g": 0, "price_per_kg": 80 },
-  { "name": "Сахар-песок", "type": "специя", "protein_per_100g": 0, "fat_per_100g": 0, "carbs_per_100g": 100, "kcal_per_100g": 400, "price_per_kg": 80 },
-  { "name": "Молоко сухое", "type": "прочее", "protein_per_100g": 26, "fat_per_100g": 25, "carbs_per_100g": 38, "kcal_per_100g": 470, "price_per_kg": 350 },
-  { "name": "Яйца куриные", "type": "прочее", "protein_per_100g": 13, "fat_per_100g": 11, "carbs_per_100g": 1, "kcal_per_100g": 160, "price_per_kg": 200 },
-  { "name": "Мускатный орех", "type": "специя", "protein_per_100g": 6, "fat_per_100g": 36, "carbs_per_100g": 49, "kcal_per_100g": 530, "price_per_kg": 4500 },
-  { "name": "Чеснок", "type": "специя", "protein_per_100g": 7, "fat_per_100g": 0, "carbs_per_100g": 30, "kcal_per_100g": 150, "price_per_kg": 300 },
-  { "name": "Перец чёрный молотый", "type": "специя", "protein_per_100g": 10, "fat_per_100g": 3, "carbs_per_100g": 64, "kcal_per_100g": 250, "price_per_kg": 2000 },
-  { "name": "Тмин", "type": "специя", "protein_per_100g": 18, "fat_per_100g": 22, "carbs_per_100g": 33, "kcal_per_100g": 380, "price_per_kg": 1800 },
-  { "name": "Кориандр", "type": "специя", "protein_per_100g": 12, "fat_per_100g": 18, "carbs_per_100g": 55, "kcal_per_100g": 300, "price_per_kg": 1200 },
-  { "name": "Вода/лёд", "type": "прочее", "protein_per_100g": 0, "fat_per_100g": 0, "carbs_per_100g": 0, "kcal_per_100g": 0, "price_per_kg": 0 },
-  { "name": "Щёпа ольхи", "type": "щёпа", "wood_species": "ольха", "form": "щепа", "fraction_mm": "4-8", "price_per_kg": 50 },
-  { "name": "Щёпа бука", "type": "щёпа", "wood_species": "бук", "form": "щепа", "fraction_mm": "4-8", "price_per_kg": 55 },
-  { "name": "Щёпа дуба", "type": "щёпа", "wood_species": "дуб", "form": "щепа", "fraction_mm": "4-8", "price_per_kg": 60 },
-  { "name": "Щёпа яблони", "type": "щёпа", "wood_species": "яблоня", "form": "щепа", "fraction_mm": "4-8", "price_per_kg": 70 },
-  { "name": "Щёпа вишни", "type": "щёпа", "wood_species": "вишня", "form": "щепа", "fraction_mm": "4-8", "price_per_kg": 80 },
-  { "name": "Опилки ольхи", "type": "щёпа", "wood_species": "ольха", "form": "опилки", "fraction_mm": "2-4", "price_per_kg": 40 },
-  { "name": "Стружка ольхи", "type": "щёпа", "wood_species": "ольха", "form": "стружка", "fraction_mm": "8-15", "price_per_kg": 45 }
-]
-```
-
-## 7. Рецепты (50+)
-
-Подробный план — `docs/RECIPES_BASE.md`. Каждый рецепт — отдельный JSON.
-
-## 8. Demo-пользователи
-
-```json
-[
-  { "email": "admin@feleti.by", "full_name": "Администратор", "role": "admin", "password": "Admin123!" },
-  { "email": "tech@feleti.by", "full_name": "Технолог Иванов", "role": "technologist", "password": "Tech123!" },
-  { "email": "operator@feleti.by", "full_name": "Оператор Петров", "role": "operator", "password": "Op123!" },
-  { "email": "manager@feleti.by", "full_name": "Менеджер Сидорова", "role": "manager", "password": "Man123!" }
-]
-```
-
-## 9. Запуск сидирования
-
-```bash
-# Локально
-cd backend && uv run python -m app.scripts.seed
-
-# В Docker
-docker compose exec backend python -m app.scripts.seed
-```
-
-## 10. Идемпотентность
-
-- Перед вставкой — `SELECT` по `slug` / `name`.
-- Если уже есть — `UPDATE` (опц.) или `SKIP`.
-- Идемпотентные миграции — можно запускать много раз.
-
+**Шаблон камеры** (см. SKILL `add-chamber` для полного примера):
 ```python
-async def upsert_manufacturer(session, item):
-    result = await session.execute(
-        select(Manufacturer).where(Manufacturer.name == item["name"])
-    )
-    m = result.scalar_one_or_none()
-    if m:
-        return m  # skip
-    m = Manufacturer(**item)
-    session.add(m)
-    await session.flush()
-    return m
+"feleti-smok-profi-h-250": {
+    "manufacturer_slug": "feleti",
+    "model": "Profi H 250",
+    "slug": "feleti-smok-profi-h-250",
+    "type": ChamberType.HOT,
+    "max_load_kg": 250.0,
+    "power_kw": 36.0,
+    "voltage_v": 380,
+    "supports_static_smoke": True,
+    "supports_electro": True,    # опция
+    "supports_cold_smoke": False,
+    "supports_cooling": False,
+    "supports_freezing": False,
+    "supported_protocols": ["modbus_tcp"],
+    "driver_class": "FELETI_SMOKDriver",
+    "default_driver_config": {
+        "kinco_host": "192.168.1.100",
+        "kinco_port": 502,
+        "module_host": "192.168.1.101",
+        "module_port": 503,
+    },
+    "num_chambers": 1,
+    "num_carts": 1,
+    "num_probes": 3,
+    "max_program_phases": 16,
+    "price_rrp_rub": 4_500_000,
+    "verified": True,
+    "description": "Профессиональная камера горячего копчения 250 кг.",
+},
 ```
 
-## 11. Чек-лист
+**Шаблон продукта:**
+```python
+{
+    "name": "Докторская (колбаса)",
+    "slug": "doktorskaya-kolbasa",
+    "category": "колбаса вареная",
+    "description": "Классическая вареная колбаса по ГОСТ.",
+}
+```
 
-- [ ] Все JSON валидны.
-- [ ] Все slug'и уникальны в пределах таблицы.
-- [ ] Все ссылки на другие сущности корректны (manufacturer_id, ingredient_id).
-- [ ] `verified: false` для всех камер/рецептов (до проверки).
-- [ ] Источники указаны.
-- [ ] Изображения загружены в MinIO (если есть).
-- [ ] Demo-пароли — сброшены при первом prod-деплое.
-- [ ] Идемпотентность (можно запускать повторно).
+**Шаблон ингредиента:**
+```python
+{
+    "name": "Свинина п/ж",
+    "slug": "svinina-pzh",
+    "type": IngredientType.MEAT,
+    "protein_per_100g": 14.0,
+    "fat_per_100g": 33.0,
+    "carbs_per_100g": 0.0,
+    "kcal_per_100g": 357.0,
+    "price_per_kg": 420.0,
+    "unit": "кг",
+    "is_allergen": False,
+    "allergens": [],
+    "gmo_flag": False,
+}
+```
 
-## 12. Связь с другими скиллами
+**Шаблон пользователя:**
+```python
+{
+    "username": "admin",
+    "email": "admin@feleti.local",
+    "full_name": "Администратор",
+    "password": "feleti_admin_dev",   # будет захеширован
+    "role": UserRole.ADMIN,
+    "is_superuser": True,
+    "is_active": True,
+}
+```
+
+## 3. Алгоритм сидирования
+
+### 3.1. Процедура
+1. **Запустить миграции** (нужен Docker):
+   ```bash
+   docker compose exec backend alembic upgrade head
+   ```
+2. **Запустить seed**:
+   ```bash
+   docker compose exec backend python -m app.scripts.seed
+   ```
+   Или локально (с `DATABASE_URL` на локальную БД):
+   ```bash
+   cd backend && python -m app.scripts.seed
+   ```
+3. **Проверить**:
+   ```bash
+   docker compose exec db psql -U feleti -d feleti_smok -c "SELECT slug, name FROM manufacturers;"
+   ```
+
+### 3.2. Идемпотентность
+- `Manufacturer`: уникальность по `slug`.
+- `Chamber`: уникальность по `slug`.
+- `Product`: уникальность по `slug`.
+- `Ingredient`: уникальность по `slug`.
+- `User`: уникальность по `email` и `username`.
+
+Если сущность уже есть — seed логирует `SKIP: ...` и не вставляет дубль.
+
+### 3.3. Хеширование паролей
+- Используется `passlib` + `bcrypt` (см. `app/core/security.py`).
+- `pwd_context.hash(plain)` вставляет хеш в `User.hashed_password`.
+
+## 4. Целевой объём данных (TODO)
+
+| Категория | Сейчас | Цель | Приоритет |
+|---|---|---|---|
+| Производители | 7 | 9 (+ Vemag, VSD TEC) | P2 |
+| Камеры | 6 | 18+ (все линейки конкурентов + FELETI-SMOK H/C/U) | P0 |
+| Продукты | 8 | 30+ (все категории) | P1 |
+| Ингредиенты | 6 | 30+ (с щёпой по породам) | P1 |
+| Brines | 0 | 10+ (типовые посолы) | P1 |
+| Рецепты | 0 | 50+ (базовый набор из RECIPES_BASE.md) | P0 |
+| Knowledge articles | 0 | 10+ (типы копчения, ГОСТы, troubleshooting) | P1 |
+| Users | 3 | 3 (admin/tech/operator) | ✅ |
+
+## 5. Чек-лист добавления seed-данных
+
+- [ ] Все slug'и уникальны в рамках проекта.
+- [ ] Все slug'и в формате `^[a-z0-9-]+$`.
+- [ ] Производитель существует в `MANUFACTURERS` (для `manufacturer_slug`).
+- [ ] `driver_class` зарегистрирован (для камер).
+- [ ] `default_driver_config` — валидный dict (без `None` для обязательных полей).
+- [ ] `verified: false` для новых данных.
+- [ ] Источник указан (`source_url`, `source`).
+- [ ] Цены реалистичны (для РФ/СНГ).
+- [ ] Единицы измерения: `price_per_kg` в BYN/RUB, `max_load_kg` в кг, `volume_m3` в м³.
+
+## 6. Альтернативные подходы (TODO)
+
+- **JSON-файлы** в `data/seed/` — гибче, но требует парсер. Рассматривал в начале, отказались в пользу Python.
+- **CSV/Excel импорт** через Celery worker — для bulk-импорта от поставщиков.
+- **API-импорт** — `POST /api/v1/manufacturers` + `POST /api/v1/chambers` в цикле (для миграций).
+
+## 7. Связь с другими скиллами
 
 - `smoke-platform` — общие правила.
-- `add-recipe` — для рецептов.
-- `add-chamber` — для камер.
+- `add-recipe` — для добавления новых рецептов.
+- `add-chamber` — для добавления новых камер.
+- `camera-driver` — для регистрации драйверов перед seed камер.
 
 ---
 
-**Версия:** 0.1.0
-**Загружай:** при первоначальной настройке БД, добавлении каталога или миграции.
+**Версия:** 0.2.0 (2026-06-02)
+**Загружай:** при первоначальной настройке БД или добавлении/изменении каталога.
