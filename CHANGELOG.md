@@ -7,12 +7,39 @@
 ## [Unreleased]
 
 ### В работе
-- Backend: API v1: knowledge CRUD + search
 - Backend: services: recipe_workflow, telemetry (Redis pub/sub для масштабирования)
 - Backend: workers (Celery): parse_telegram, parse_pdf, send_report
 - Frontend: init Next.js 14 + shadcn/ui + PWA
 - Реальный стенд FELETI-SMOK (R&D)
 - Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
+
+### Added (сессия 5, 2026-06-02 — backend, часть 4: knowledge base)
+- **API v1: knowledge** (`/api/v1/knowledge`):
+  - `GET /knowledge` — список с пагинацией + фильтры по `category`, `tag`, `manufacturer_id`, `is_published`.
+  - `GET /knowledge/{id}` — детальная карточка (с body_md и вложениями).
+  - `GET /knowledge/by-slug/{slug}` — для SEO/публичных ссылок.
+  - `GET /knowledge/search?q=...` — полнотекстовый поиск со скорингом (title=3, tags=2, excerpt=2, body=1) + опц. фильтр по category, snippet вокруг первого совпадения.
+  - `POST /knowledge` — создание статьи с вложениями (file_id, kind, filename, size, mime).
+  - `PATCH /knowledge/{id}` — обновление с авто-инкрементом `version`.
+  - `DELETE /knowledge/{id}` — каскадное удаление вложений.
+- **schemas/knowledge.py**: `KnowledgeArticleRead/Summary/Create/Update`, `KnowledgeAttachmentRead/Create`, `KnowledgeSearchResult`, enums для `ArticleCategory` (8 категорий) и `AttachmentKind` (5 типов).
+- **Search стратегия v1**: разбивка запроса на слова, ILIKE по title/body/excerpt/tags, in-Python скоринг. Полнотекст на PostgreSQL tsvector — TODO на следующую сессию (через Alembic-миграцию).
+- **61 Python-файлов** проходят `ast.parse` + `py_compile`.
+
+### Notes
+- JSONB-оператор `KnowledgeArticle.tags.contains([tag])` для фильтра по тегу (PostgreSQL only, не SQLite-friendly).
+- При PATCH `version` увеличивается автоматически (1 → 2 → 3 ...). Это позволяет отслеживать историю изменений.
+- Вложения (`KnowledgeAttachment`) создаются каскадно при создании статьи; на PATCH/DELETE каскад настроен через `cascade="all, delete-orphan"`.
+- `slug` уникален, формат `^[a-z0-9-]+$` (для URL-friendly).
+
+---
+
+## [Unreleased] (предыдущая сессия)
+
+### В работе (на момент завершения сессии 4)
+- Backend: API v1 для всех сущностей
+- Frontend: init Next.js 14 + shadcn/ui + PWA
+- Реальный стенд FELETI-SMOK (R&D)
 
 ### Added (сессия 5, 2026-06-02 — backend, часть 3: recipe_calc + telemetry)
 - **services/recipe_calc.py** — расчёт характеристик рецепта:

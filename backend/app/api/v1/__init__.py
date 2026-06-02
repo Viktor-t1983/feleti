@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (  # noqa: E402, F401
     chambers,
     health,
     ingredients,
+    knowledge,
     manufacturers,
     products,
     recipes,
@@ -29,3 +30,4 @@ api_router.include_router(brines.router, prefix="/brines", tags=["brines"])
 api_router.include_router(recipes.router, prefix="/recipes", tags=["recipes"])
 api_router.include_router(batches.router, prefix="/batches", tags=["batches"])
 api_router.include_router(telemetry.router, prefix="/chambers", tags=["telemetry"])
+api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
