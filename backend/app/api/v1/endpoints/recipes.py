@@ -11,7 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DBSession
 from app.models.audit import AuditAction
+from app.models.ingredient import Ingredient
 from app.models.recipe import Recipe, RecipeStatus, RecipeVersion
+from app.schemas.calc import RecipeCalcResponse
 from app.schemas.common import Page, PageParams
 from app.schemas.recipe import (
     RecipeCreate,
@@ -21,6 +23,7 @@ from app.schemas.recipe import (
     RecipeVersionRead,
 )
 from app.services import audit
+from app.services.recipe_calc import IngredientForCalc, calculate_recipe
 
 router = APIRouter()
 
@@ -258,3 +261,146 @@ async def create_version(
     await db.commit()
     await db.refresh(version)
     return RecipeVersionRead.model_validate(version)
+
+
+async def _calc_for_version(
+    db: DBSession, recipe_id: int, version: RecipeVersion
+) -> RecipeCalcResponse:
+    """Посчитать БЖУ/себестоимость/yield для конкретной версии рецепта."""
+    ingredients_raw: list[dict] = version.ingredients or []
+    if not ingredients_raw:
+        return RecipeCalcResponse(
+            recipe_id=recipe_id,
+            recipe_version_id=version.id,
+            total_mass_kg=0.0,
+            finished_mass_kg=0.0,
+            losses_percent=0.0,
+            cost_per_kg_raw=0.0,
+            cost_per_kg_finished=0.0,
+            total_cost=0.0,
+            bju_per_100g={"protein": 0, "fat": 0, "carbs": 0, "kcal": 0},
+            program={
+                "total_duration_min": 0.0,
+                "phases_count": 0,
+                "phases_summary": [],
+            },
+            breakdown=[],
+        )
+
+    # Собираем ID ингредиентов, тянем из БД батчем.
+    ingredient_ids: list[int] = []
+    for entry in ingredients_raw:
+        iid = entry.get("ingredient_id") or entry.get("id")
+        if isinstance(iid, int):
+            ingredient_ids.append(iid)
+    unique_ids = list(set(ingredient_ids))
+    rows = (
+        await db.scalars(select(Ingredient).where(Ingredient.id.in_(unique_ids)))
+    ).all() if unique_ids else []
+    by_id: dict[int, Ingredient] = {r.id: r for r in rows}
+
+    parsed: list[IngredientForCalc] = []
+    for entry in ingredients_raw:
+        iid = entry.get("ingredient_id") or entry.get("id")
+        if not isinstance(iid, int) or iid not in by_id:
+            continue
+        ing = by_id[iid]
+        mass_kg = 0.0
+        if entry.get("mass_kg") is not None:
+            mass_kg = float(entry["mass_kg"])
+        elif entry.get("mass_g") is not None:
+            mass_kg = float(entry["mass_g"]) / 1000.0
+        elif entry.get("percent") is not None:
+            # Доля от общей массы — нужно знать total, считаем от суммы остальных mass_kg.
+            # Упрощённо: пока 0, обработаем после.
+            mass_kg = 0.0
+        if mass_kg > 0:
+            parsed.append(
+                IngredientForCalc(
+                    id=ing.id,
+                    name=ing.name,
+                    protein_per_100g=ing.protein_per_100g,
+                    fat_per_100g=ing.fat_per_100g,
+                    carbs_per_100g=ing.carbs_per_100g,
+                    kcal_per_100g=ing.kcal_per_100g,
+                    price_per_kg=ing.price_per_kg,
+                    mass_kg=mass_kg,
+                )
+            )
+
+    brine_method: str | None = None
+    if version.brine and isinstance(version.brine, dict):
+        brine_method = version.brine.get("method")
+
+    result = calculate_recipe(
+        ingredients=parsed,
+        program=version.program or [],
+        brine_method=brine_method,
+    )
+    return RecipeCalcResponse(
+        recipe_id=recipe_id,
+        recipe_version_id=version.id,
+        total_mass_kg=result.total_mass_kg,
+        finished_mass_kg=result.finished_mass_kg,
+        losses_percent=result.losses_percent,
+        cost_per_kg_raw=result.cost_per_kg_raw,
+        cost_per_kg_finished=result.cost_per_kg_finished,
+        total_cost=result.total_cost,
+        bju_per_100g=result.bju_per_100g.__dict__,
+        program={
+            "total_duration_min": result.program.total_duration_min,
+            "phases_count": result.program.phases_count,
+            "phases_summary": result.program.phases_summary,
+        },
+        breakdown=result.breakdown,
+    )
+
+
+@router.get(
+    "/{recipe_id}/calc",
+    response_model=RecipeCalcResponse,
+    summary="Расчёт для текущей (current) версии рецепта",
+)
+async def calc_current_version(
+    recipe_id: int, db: DBSession, _user: CurrentUser
+) -> RecipeCalcResponse:
+    recipe = await db.scalar(
+        select(Recipe)
+        .options(selectinload(Recipe.current_version))
+        .where(Recipe.id == recipe_id)
+    )
+    if recipe is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Рецепт не найден"
+        )
+    if recipe.current_version is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У рецепта нет current_version_id (создайте первую версию)",
+        )
+    return await _calc_for_version(db, recipe_id, recipe.current_version)
+
+
+@router.get(
+    "/{recipe_id}/versions/{version_id}/calc",
+    response_model=RecipeCalcResponse,
+    summary="Расчёт для конкретной версии рецепта",
+)
+async def calc_version(
+    recipe_id: int,
+    version_id: int,
+    db: DBSession,
+    _user: CurrentUser,
+) -> RecipeCalcResponse:
+    version = await db.scalar(
+        select(RecipeVersion).where(
+            RecipeVersion.id == version_id,
+            RecipeVersion.recipe_id == recipe_id,
+        )
+    )
+    if version is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Версия {version_id} рецепта {recipe_id} не найдена",
+        )
+    return await _calc_for_version(db, recipe_id, version)

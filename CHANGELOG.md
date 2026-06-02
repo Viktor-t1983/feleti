@@ -7,13 +7,52 @@
 ## [Unreleased]
 
 ### В работе
-- Backend: API v1: telemetry WebSocket (Redis pub/sub)
 - Backend: API v1: knowledge CRUD + search
-- Backend: services: recipe_workflow, recipe_calc, telemetry, knowledge
+- Backend: services: recipe_workflow, telemetry (Redis pub/sub для масштабирования)
 - Backend: workers (Celery): parse_telegram, parse_pdf, send_report
 - Frontend: init Next.js 14 + shadcn/ui + PWA
 - Реальный стенд FELETI-SMOK (R&D)
 - Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
+
+### Added (сессия 5, 2026-06-02 — backend, часть 3: recipe_calc + telemetry)
+- **services/recipe_calc.py** — расчёт характеристик рецепта:
+  - `compute_bju(ingredients)` — белки/жиры/углеводы/ккал на 100 г.
+  - `compute_cost(ingredients)` — общая стоимость и себестоимость за кг.
+  - `compute_yield(ingredients, program, brine_method)` — выход с учётом потерь копчения и посола.
+  - `compute_program_stats(program)` — суммарная длительность + сводка по фазам.
+  - `calculate_recipe(...)` — главная точка входа, возвращает `RecipeCalcResult`.
+  - Дефолтные потери по типу копчения: горячее 32%, полугорячее 25%, холодное 12%, электро 8%, универсальное 25%.
+  - Доп. потери при посоле: сухой 4%, мокрый 2%, шприцевание 1%, комбинированный 3%, смешанный 3%.
+  - **Smoke-test**: горячее 32%+посол 4%=36% ✓, холодное 12%+4%=16% ✓, электро 8%+4%=12% ✓.
+- **API v1: расчёт рецепта** (`/api/v1/recipes/{id}/calc`):
+  - `GET /recipes/{id}/calc` — расчёт для current version.
+  - `GET /recipes/{id}/versions/{version_id}/calc` — расчёт для конкретной версии.
+  - Возвращает `RecipeCalcResponse` с БЖУ, себестоимостью, yield, разбивкой по ингредиентам, статистикой программы.
+- **API v1: telemetry** (`/api/v1/chambers/{id}/...`):
+  - `GET /chambers/{id}/status` — running/paused/phase/phase_progress.
+  - `GET /chambers/{id}/telemetry/latest` — последний сэмпл из буфера.
+  - `GET /chambers/{id}/telemetry/history?limit=600` — последние N точек.
+  - `GET /chambers/{id}/active-batch` — текущая активная партия (RUNNING/PAUSED) для камеры.
+  - `WS /chambers/{id}/telemetry/ws?token=...` — WebSocket live-стрим.
+    - Аутентификация по токену в query (стандарт для WS).
+    - Команды клиента: `{"action": "ping"}`, `{"action": "subscribe", "interval_s": 1.0}`.
+    - Сообщения сервера: `{"type": "ready", ...}`, `{"type": "telemetry", "data": {...}}`, `{"type": "pong"}`, `{"type": "error", "message": ...}`.
+- **schemas/calc.py** — `RecipeCalcResponse` + `BJUSchema` + `ProgramStatsSchema` + `IngredientBreakdown` + `ProgramPhaseSummary`.
+- **59 Python-файлов** проходят `ast.parse` + `py_compile`.
+
+### Notes
+- **WebSocket с двумя async.wait корутинами** (receive + queue.get) — fan-out, клиент может слать команды во время ожидания телеметрии.
+- **Recipe calc** использует эвристики; для точного БЖУ нужна лаборатория (белок денатурирует, жир частично вытапливается, углеводы уходят с влагой) — калькулятор даёт БЖУ сырья как приближение.
+- **Recipe.calc не пишет в БД** — это чистая превью-функция. Чтобы сохранить результат, нужно отдельно `PATCH /recipes/{id}/versions/{vid}` с yield_percent/cost_per_kg/bju_per_100g.
+
+---
+
+## [Unreleased] (предыдущая сессия)
+
+### В работе (на момент завершения сессии 4)
+- Backend: API v1 для всех сущностей
+- Frontend: init Next.js 14 + shadcn/ui + PWA
+- Реальный стенд FELETI-SMOK (R&D)
 
 ### Added (сессия 5, 2026-06-02 — backend API v1, часть 2: batches + gateway)
 - **API v1: batches** (`backend/app/api/v1/endpoints/batches.py`):

@@ -63,13 +63,16 @@
 - [x] ⏳ **Применить миграцию** (`alembic upgrade head` + seed)
 - [x] ⏳ API v1: users CRUD
 - [x] ✅ API v1: batches CRUD + start/pause/resume/cancel/complete (через ChamberGateway)
-- [x] ⏳ API v1: telemetry WebSocket (Redis pub/sub)
+- [x] ✅ API v1: telemetry WebSocket (внутрипроцессный fan-out через ChamberGateway; Redis pub/sub — для следующей сессии)
 - [x] ⏳ API v1: knowledge CRUD + search
 - [x] ⏳ API v1: chat (in-app) + RAG
 - [x] ⏳ API v1: reports + PDF
 - [x] ⏳ Services: recipe_workflow (draft→pending→approved→archived)
-- [x] ⏳ Services: recipe_calc (БЖУ, себестоимость, yield)
+- [x] ✅ Services: recipe_calc (БЖУ, себестоимость, yield)
 - [x] ✅ Services: chamber_gateway (абстракция + пул инстансов)
+- [x] ✅ Services: recipe_calc (БЖУ, себестоимость, yield, длительность программы)
+- [x] ✅ API v1: recipe calc (current version + specific version)
+- [x] ✅ API v1: telemetry REST (status/latest/history/active-batch) + WebSocket (live-стрим)
 - [x] ⏳ Services: telemetry (буферизация, batch insert)
 - [x] ⏳ Services: knowledge (поиск, тегирование)
 - [x] ⏳ Services: chat (RAG/AI)
