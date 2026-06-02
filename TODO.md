@@ -70,11 +70,30 @@
 
 ### Seed-данные
 - [x] ⏳ 9 производителей (Ижица, FELETI, Mauting, Fessmann, Kerres, AGROS, Reich, Vemag, VSD TEC)
-- [x] ⏳ 18+ камер (модели каждого производителя)
-- [x] ⏳ 50+ рецептов (колбасы, мясо, птица, рыба, сыр, сало, снеки)
+- [x] ⏳ 18+ камер (модели каждого производителя), включая H/C/U линейки FELETI-SMOK
+- [x] ⏳ 80+ рецептов (колбасы, мясо, птица, рыба г/к, рыба х/к, рыба электро, сыр, сало, снеки, охлаждение)
 - [x] ⏳ 30+ ингредиентов (включая щёпу по породам)
 - [x] ⏳ 10+ статей в базе знаний (типы копчения, ГОСТы, troubleshooting)
 - [x] ⏳ Demo-пользователи (admin, technologist, operator)
+
+### Парсинг и база знаний
+- [x] ✅ `docs/research/README.md` — общий план парсинга
+- [x] ✅ `docs/research/ijiza/README.md` — план по Ижице (P0)
+- [x] ✅ `docs/research/mauting/README.md` — план по Mauting (P1)
+- [x] ✅ `docs/research/fessmann/README.md` — план по Fessmann (P1)
+- [x] ✅ `docs/research/kerres/README.md` — план по Kerres (P1)
+- [x] ✅ `docs/research/dilers/README.md` — план по дилерам в РФ/СНГ
+- [x] ⏳ Реализовать `backend/app/services/web_parser.py` (HTML-парсинг)
+- [x] ⏳ Реализовать `backend/app/services/pdf_parser.py` (pdfplumber + PyMuPDF)
+- [x] ⏳ Реализовать `backend/app/services/telegram_parser.py` (Telethon)
+- [x] ⏳ Реализовать `backend/app/services/youtube_parser.py` (yt-dlp + Whisper)
+- [x] ⏳ Спарсить ijiza.ru — каталог продукции
+- [x] ⏳ Скачать и распарсить PDF-каталог Ижица 2024
+- [x] ⏳ Получить Telethon API_ID/HASH от пользователя
+- [x] ⏳ Спарсить TG-каналы (@ijiza_chat и др.)
+- [x] ⏳ Транскрибировать 10+ YouTube-обзоров Ижица/Fessmann/Kerres
+- [x] ⏳ Собрать 10+ дилеров в РФ (Яндекс.Карты, 2ГИС, форумы)
+- [x] ⏳ Верифицировать Modbus-карту Varmen-1 (Wireshark или доки)
 
 ### Frontend
 - [x] ⏳ Инициализация Next.js 14 + TypeScript

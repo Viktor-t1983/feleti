@@ -67,30 +67,31 @@
 
 ## 4. Сводка последней сессии
 
-### Сессия от 2026-06-02 (продолжение foundation phase)
+### Сессия от 2026-06-02 (продолжение foundation phase, +расширение hardware-стратегии)
 - **Что сделано:**
-  - Создана `docs/ARCHITECTURE.md` — детальная C4-архитектура.
-  - Создана `docs/CONTEXT_HANDOFF.md` — протокол передачи контекста.
-  - Создана `docs/COMPETITORS.md` — детальная матрица конкурентов.
-  - Создана `docs/RECIPES_BASE.md` — структура базы рецептов, 50+ стартовых.
-  - Создана `docs/FELETI_BRAND.md` — айдентика.
-  - Создана `docs/cameras/feleti-smok/SPEC.md` — спецификация камеры FELETI-SMOK.
-  - Созданы `CHANGELOG.md`, `TODO.md`, `OPEN_QUESTIONS.md`.
-  - Создана `.opencode/AGENTS.md`.
-  - Созданы 7 файлов `SKILL.md`: `smoke-platform`, `add-recipe`, `add-chamber`, `camera-driver`, `seed-data`, `design-system`, `research-competitor`.
-  - **Зафиксирована hardware-стратегия FELETI-SMOK** (через вопросы пользователю): Profi/Industrial B2B, Kinco HMI/PLC + свой модуль расширения, свой дымогенератор, электростатика как опция, датчики — всегда максимальная комплектация.
-  - Реализованы драйверы камер: `base.py` (ChamberDriver), `simulated.py` (мок с физ-моделью), `feleti_smok.py` (Kinco + свой модуль), `varmen.py` (Modbus TCP, DRAFT-карта).
-  - Реестр драйверов с декоратором `@register` в `__init__.py`.
-  - `docker-compose.yml` — добавлен Mosquitto MQTT broker.
-  - `nginx/mosquitto.conf` — конфигурация Mosquitto с auth + ACL.
-  - Обновлены `docs/PROJECT_BOOT.md` и `docs/CAMERA_DRIVER.md` с учётом hardware-стратегии.
+  - **Приняты 2 главные роли** (по запросу пользователя): главный разработчик софта + главный технолог по копчению.
+  - **Расширена линейка FELETI-SMOK** (по запросу пользователя — холодное копчение + охлаждение у Ижицы):
+    - **Profi H** (горячее): 100/150/200/250 кг.
+    - **Profi C** (холодное + охлаждение): 100/200/250 кг с холодильным агрегатом.
+    - **Profi U** (универсал): 200/250 кг — горячее + холодное + электро + охлаждение в одной камере.
+    - **C-Ultra / U-Frost** (опция): заморозка полуфабриката.
+  - **Расширена база рецептов до 80+** (холодное копчение + охлаждение + полугорячее + сыры/прочее).
+  - **Расширена `docs/SKILL_SMOKING.md`** — детальные секции по холодному копчению, охлаждению, заморозке.
+  - **Создана структура `docs/research/`** — план глубокого парсинга конкурентов:
+    - `README.md` — общий план (P0–P3).
+    - `ijiza/README.md` — детальный план парсинга Ижицы (сайт, каталоги, TG, YouTube, дилеры, контроллер).
+    - `mauting/README.md`, `fessmann/README.md`, `kerres/README.md` — планы P1.
+    - `dilers/README.md` — план по дилерам в РФ/СНГ (Яндекс.Карты, 2ГИС, форумы, выставки).
+  - **Скрипты парсинга** — каркасы описаны в `docs/research/README.md` (web_parser, pdf_parser, telegram_parser, youtube_parser).
+  - Обновлены CHANGELOG.md, TODO.md (добавлены задачи парсинга).
 
 - **Какие файлы созданы/изменены:**
-  - **Созданы документы:** `docs/{ARCHITECTURE,CONTEXT_HANDOFF,COMPETITORS,RECIPES_BASE,FELETI_BRAND}.md`, `docs/cameras/feleti-smok/SPEC.md`, `CHANGELOG.md`, `TODO.md`, `OPEN_QUESTIONS.md`, `.opencode/AGENTS.md`.
-  - **Созданы скиллы:** `.opencode/skills/{smoke-platform,add-recipe,add-chamber,camera-driver,seed-data,design-system,research-competitor}/SKILL.md` (7 файлов).
-  - **Созданы драйверы:** `backend/app/drivers/{base,__init__,simulated,feleti_smok,varmen}.py`.
-  - **Обновлены:** `docs/PROJECT_BOOT.md`, `docs/CAMERA_DRIVER.md`, `CHANGELOG.md`, `docker-compose.yml`.
-  - **Добавлено:** `nginx/mosquitto.conf`.
+  - **Созданы:** `docs/research/{README,ijiza/README,mauting/README,fessmann/README,kerres/README,dilers/README}.md` (6 файлов).
+  - **Изменены:**
+    - `docs/cameras/feleti-smok/SPEC.md` — добавлены Profi C и Profi U линейки, холодильный агрегат, программы холодного копчения, охлаждения, заморозки.
+    - `docs/RECIPES_BASE.md` — расширена база рецептов до 80+ (добавлены холодное, полугорячее, охлаждение, сыры/прочее).
+    - `docs/SKILL_SMOKING.md` — детальные секции по холодному копчению, охлаждению, заморозке.
+    - `CHANGELOG.md`, `TODO.md` — отмечены новые задачи парсинга.
 
 - **Что блокирует:**
   - 🚫 Нет Telethon API_ID/HASH от пользователя → нельзя начать парсинг TG-каналов.
@@ -99,21 +100,24 @@
   - 🚫 Не определены точные ТТХ камер FELETI-SMOK (нужны эскизы от инженеров).
 
 - **Следующие шаги для новой сессии (по приоритету):**
-  1. ⏳ Backend: модели (chamber, product, ingredient, recipe, brine, batch, knowledge, audit, telemetry).
-  2. ⏳ Backend: Alembic — инициализация и первая миграция.
-  3. ⏳ Backend: API v1 для auth, manufacturers, chambers, recipes, batches, telemetry (WebSocket).
-  4. ⏳ Backend: services (recipe_workflow, recipe_calc, chamber_gateway, telemetry, knowledge).
-  5. ⏳ Backend: workers (Celery) для parse_telegram, parse_pdf, send_report.
-  6. ⏳ Backend: seed-скрипт (9 производителей, 18+ камер, 50+ рецептов).
-  7. ⏳ Frontend: init Next.js 14 + TypeScript + Tailwind + shadcn/ui.
-  8. ⏳ Frontend: PWA manifest + service worker (Workbox).
-  9. ⏳ Frontend: Login, Dashboard, Chambers, Recipes (с конструктором и версионированием), Batches.
-  10. ⏳ Hardware: детальные KINCO_REGISTER_MAP.md, EXTENSION_MODULE.md, SCHEMATIC.md, BOM.md, HMI_PROGRAM.md, TEST_PROCEDURE.md для FELETI-SMOK.
-  11. ⏳ Парсинг: углубить ijiza.ru (рецепты, контроллер, цены, FES.APP-аналоги).
-  12. ⏳ Парсинг: каталоги Mauting/Fessmann/Kerres.
-  13. ⏳ Получить Telethon API_ID/HASH от пользователя, запустить парсер TG.
+  1. ⏳ Реализовать `backend/app/services/web_parser.py` (полная версия).
+  2. ⏳ Спарсить [ijiza.ru](https://ijiza.ru) — каталог продукции, карточки 18+ моделей.
+  3. ⏳ Скачать PDF-каталог Ижица 2024, распарсить через `pdf_parser.py`.
+  4. ⏳ Backend: модели (chamber, product, ingredient, recipe, brine, batch, knowledge, audit, telemetry).
+  5. ⏳ Backend: Alembic — инициализация и первая миграция.
+  6. ⏳ Backend: API v1 для auth, manufacturers, chambers, recipes, batches, telemetry (WebSocket).
+  7. ⏳ Backend: services (recipe_workflow, recipe_calc, chamber_gateway, telemetry, knowledge).
+  8. ⏳ Backend: workers (Celery) для parse_telegram, parse_pdf, send_report.
+  9. ⏳ Backend: seed-скрипт (9 производителей, 18+ камер, 80+ рецептов).
+  10. ⏳ Frontend: init Next.js 14 + TypeScript + Tailwind + shadcn/ui.
+  11. ⏳ Frontend: PWA manifest + service worker (Workbox).
+  12. ⏳ Frontend: Login, Dashboard, Chambers, Recipes (с конструктором и версионированием), Batches.
+  13. ⏳ Hardware: детальные KINCO_REGISTER_MAP.md, EXTENSION_MODULE.md, SCHEMATIC.md, BOM.md, HMI_PROGRAM.md, TEST_PROCEDURE.md для FELETI-SMOK.
+  14. ⏳ Реализовать `telegram_parser.py` (Telethon) после получения API_ID/HASH.
+  15. ⏳ Реализовать `youtube_parser.py` (yt-dlp + Whisper), транскрибировать 10+ видео.
+  16. ⏳ Собрать 10+ дилеров Ижица в РФ (Яндекс.Карты, 2ГИС, форумы).
 
-- **Открытые вопросы к пользователю:** см. `OPEN_QUESTIONS.md` (hardware FELETI-SMOK, монетизация, демо-камера, сроки).
+- **Открытые вопросы к пользователю:** см. `OPEN_QUESTIONS.md` (hardware FELETI-SMOK, монетизация, демо-камера, сроки, Telethon API_ID/HASH).
 
 ## 5. Шаблон коммита
 

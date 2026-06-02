@@ -10,33 +10,46 @@
 - Backend: модели chamber, product, ingredient, recipe, brine, batch, knowledge, audit
 - Backend: API v1 для всех сущностей
 - Frontend: init Next.js 14 + shadcn/ui + PWA
-- Seed-данные: 9 производителей, 18+ камер, 50+ рецептов
+- Seed-данные: 9 производителей, 18+ камер, 80+ рецептов (после расширения холодного копчения)
 - Реальный стенд FELETI-SMOK (R&D)
+- Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
 
 ### Added
-- `docs/FELETI_BRAND.md` — айдентика (цвета, типографика, компоненты, PWA-иконки).
-- `docs/ARCHITECTURE.md` — детальная C4-архитектура.
-- `docs/CONTEXT_HANDOFF.md` — протокол передачи контекста между сессиями.
-- `docs/COMPETITORS.md` — детальная матрица конкурентов (Ижица, Mauting, Fessmann, Kerres, AGROS, Reich, Vemag, VSD TEC).
-- `docs/RECIPES_BASE.md` — структура базы рецептов, 50+ стартовых.
-- `CHANGELOG.md`, `TODO.md`, `OPEN_QUESTIONS.md` — project management.
-- `.opencode/AGENTS.md` — entry point для opencode-агента.
-- 7 файлов `SKILL.md` в `.opencode/skills/{smoke-platform,add-recipe,add-chamber,camera-driver,seed-data,design-system,research-competitor}/`.
-- `docs/cameras/feleti-smok/SPEC.md` — спецификация камеры FELETI-SMOK.
-- `backend/app/drivers/base.py` — интерфейс `ChamberDriver` (capabilities, telemetry, program).
-- `backend/app/drivers/__init__.py` — реестр драйверов с декоратором `@register`.
-- `backend/app/drivers/simulated.py` — мок с физической моделью (T_chamber, T_product, инерция, фазы).
-- `backend/app/drivers/feleti_smok.py` — драйвер камер FELETI-SMOK (Kinco + свой модуль, Modbus TCP).
-- `backend/app/drivers/varmen.py` — драйвер камер Ижица Varmen (Modbus TCP, DRAFT-карта регистров).
-- `docker-compose.yml` — добавлен Mosquitto MQTT broker для облачного канала камер.
-- `nginx/mosquitto.conf` — конфигурация Mosquitto с auth + ACL.
+- **Линейка FELETI-SMOK расширена** (сессия 3, по запросу пользователя):
+  - Profi H (горячее): 100/150/200/250 кг.
+  - **Profi C (холодное + охлаждение, новинка):** 100/200/250 кг с холодильным агрегатом.
+  - **Profi U (универсал, новинка):** 200/250 кг — горячее + холодное + электро + охлаждение в одной камере.
+- `docs/cameras/feleti-smok/SPEC.md` — добавлены секции:
+  - **Холодное копчение** (Profi C): программы для сёмги, форели, скумбрии, сыра, сала, балыка.
+  - **Охлаждение готовой продукции** (Profi C/U): соответствие СанПиН.
+  - **Заморозка полуфабриката** (Profi C-Ultra / U-Frost, опция).
+  - **Полугорячее копчение** (Profi H, расширенный режим).
+  - **Холодильный агрегат**: R404A/R290, T -5…+25°C, инверторный компрессор, оттайка.
+  - **Таблица электрики** для H/C/U линеек.
+- `docs/research/README.md` — общий план парсинга (Ижица P0, Mauting/Fessmann/Kerres P1, остальные P2-P3).
+- `docs/research/ijiza/README.md` — детальный план парсинга Ижицы (сайт, каталоги, TG, YouTube, дилеры).
+- `docs/research/mauting/README.md` — план по Mauting.
+- `docs/research/fessmann/README.md` — план по Fessmann + FES.APP.
+- `docs/research/kerres/README.md` — план по Kerres + Jet Smoke + Hybrid Airflow.
+- `docs/research/dilers/README.md` — план по дилерам в РФ/СНГ.
+- `docs/RECIPES_BASE.md` — расширена база рецептов: **80+** стартовых (было 50+).
+  - **Холодное копчение + охлаждение (17 рецептов)**: сёмга, форель, скумбрия, палтус, сиг, осётр, балык, грудинка, корейка, сало, сыры, масло, сырокопчёные колбасы.
+  - **Полугорячее копчение (5 рецептов)**: сельдь, скумбрия, треска, курица, свинина.
+  - **Охлаждение (4 рецепта)**: после г/к, после п/к, подсушка, хранение.
+  - **Сыры/прочее (8 рецептов)**: сыр, сало, масло, орехи, чеснок, перец, соль.
+- `docs/SKILL_SMOKING.md` — расширены разделы:
+  - **Холодное копчение — подробно** (Profi C-линейка): применение, параметры, технологические нюансы, оборудование, Ижица UTR-C.
+  - **Охлаждение готовой продукции** (Profi C/U): СанПиН 2.3/2.4.3590-20, ТР ТС 021/2011, преимущества.
+  - **Заморозка полуфабриката** (Profi C-Ultra / U-Frost): шоковая заморозка, Ижица UTR-F.
 
 ### Changed
-- `docs/PROJECT_BOOT.md` — обновлён: FELETI как производитель камер + зафиксирована hardware-стратегия (Kinco + свой модуль, Profi/Industrial, свой дымогенератор, электростатика-опция).
-- `docs/CAMERA_DRIVER.md` — добавлена двухуровневая архитектура камер FELETI-SMOK (Kinco + свой модуль).
+- `docs/cameras/feleti-smok/SPEC.md` — добавлены Profi C и Profi U линейки с холодным копчением, охлаждением и заморозкой (по запросу пользователя).
+- `docs/RECIPES_BASE.md` — расширена секция «Типы копчения» (добавлены C, U, F, ELE линейки FELETI-SMOK).
+- `docs/SKILL_SMOKING.md` — таблица видов копчения дополнена колонкой «Камера FELETI-SMOK».
 
-### Решено
-- Зафиксирована hardware-стратегия камер FELETI-SMOK: Kinco HMI/PLC + свой модуль расширения; Profi/Industrial B2B; электростатика как опция; свой дымогенератор (щепа + фрикционный + атомайзер); датчики — всегда максимальная комплектация.
+### Решено (продолжение)
+- **По запросу пользователя:** FELETI-SMOK Profi C (холодное + охлаждение) и Profi U (универсал) добавлены в линейку. Источники: холодное копчение и охлаждение у Ижицы (UTR-C, UTR-F), Mauting (туннели), Fessmann (Turbomat с предварит. охлаждением).
+- **Создана структура для глубокого парсинга** (`docs/research/`): Ижица — приоритет P0, остальные — P1-P3.
 
 ---
 
