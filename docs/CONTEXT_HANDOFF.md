@@ -148,13 +148,59 @@
 - **56 Python-файлов** проходят `ast.parse` + `py_compile`.
 - Коммит: `4e9d41c`.
 
-### Следующий приоритет (любой из):
-1. **Alembic**: первая миграция `alembic revision --autogenerate -m "initial"` + `alembic upgrade head` + `python -m app.scripts.seed` (нужен Docker).
-2. **telemetry WebSocket** endpoint: `GET /chambers/{id}/telemetry/ws` (Fan-out из ChamberGateway).
-3. **knowledge CRUD** + search.
+### Сессия от 2026-06-02 (recipe_calc + telemetry WebSocket/REST)
+- `app/services/recipe_calc.py` — чистые функции: БЖУ, себестоимость, yield с дефолтами по типу копчения (горячее 32%, холодное 12%, электро 8%) + посол (сухой 4%, мокрый 2%, шприц 1%).
+- API: `GET /recipes/{id}/calc` (current) + `GET /recipes/{id}/versions/{vid}/calc`.
+- API: `GET /chambers/{id}/status|telemetry/latest|telemetry/history|active-batch`.
+- API: `WS /chambers/{id}/telemetry/ws?token=...` (auth в query, ping/subscribe команды).
+- `schemas/calc.py` — RecipeCalcResponse + BJU + ProgramStats + Breakdown.
+- 59 Python-файлов.
+- Коммит: `4cb8852`.
+
+### Сессия от 2026-06-02 (knowledge CRUD + search)
+- API: `/knowledge` (list/detail/by-slug) + `/knowledge/search?q=...` (in-Python скоринг title=3, tags=2, excerpt=2, body=1; ILIKE по 4 полям; snippet).
+- POST/PATCH/DELETE с авто-инкрементом version и каскадом на attachments.
+- Фильтры: category, tag (JSONB contains), manufacturer_id, is_published.
+- `schemas/knowledge.py` — 9 Pydantic моделей + 2 enums.
+- **61 Python-файлов** проходят `ast.parse` + `py_compile`.
+- Коммит: `f8fcb5d`.
+
+### Итог сессии 5 (2026-06-02)
+**5 коммитов, +3525 строк backend кода, 53→61 Python-файлов:**
+
+1. `6d55c7e` — API v1 endpoints + Pydantic schemas + services (auth/audit/deps)
+2. `4e9d41c` — ChamberGateway + batches lifecycle
+3. `1c94839` — docs(handoff): резюме сессии 5 (API v1 + ChamberGateway + batches)
+4. `4cb8852` — recipe_calc + telemetry WebSocket/REST
+5. `f8fcb5d` — knowledge CRUD + search
+
+**Backend MVP завершён:**
+
+| Домен | Endpoints | Coverage |
+|-------|-----------|----------|
+| Auth | login (OAuth2 + JSON), refresh, me | ✓ |
+| Manufacturers | CRUD | ✓ |
+| Chambers | CRUD + /drivers | ✓ |
+| Products | CRUD | ✓ |
+| Ingredients | CRUD | ✓ |
+| Brines | CRUD | ✓ |
+| Recipes | CRUD + versions + /calc | ✓ |
+| Batches | CRUD + start/pause/resume/cancel/complete | ✓ |
+| Telemetry | status/latest/history/active-batch + WS | ✓ |
+| Knowledge | CRUD + /search | ✓ |
+| Services | auth, audit, chamber_gateway, recipe_calc | ✓ |
+| Models | 11 SQLAlchemy 2.0 моделей | ✓ |
+| Alembic | конфиг + env.py + script.py.mako (готов к revision) | ✓ |
+| Seed | 7 производителей, 6 камер, 6 ингредиентов, 8 продуктов, 3 user | ✓ |
+| Drivers | base, Simulated, FELETI-SMOK, Varmen | 4/7 |
+
+### Следующий приоритет (сессия 6)
+1. **Frontend init** (Next.js 14 + TS + Tailwind + shadcn/ui + PWA) — РЕКОМЕНДУЕТСЯ. Визуальный прогресс, можно демонстрировать.
+2. **Alembic миграция + apply + seed** (нужен Docker) — блокер для E2E тестов backend.
+3. **Драйверы stubs**: fessmann.py (OPC UA), kerres.py (HTTP), mauting.py (Modbus) — расширение покрытия.
 4. **services/recipe_workflow** (draft→pending→approved→archived с авто-уведомлениями).
-5. **services/recipe_calc** (БЖУ, себестоимость, yield, время фазы).
-6. **Frontend init**: Next.js 14 + TypeScript + shadcn/ui + Tailwind + PWA.
+5. **services/telemetry с Redis pub/sub** для горизонтального масштабирования.
+6. **Workers (Celery)**: parse_telegram, parse_pdf, send_report.
 
 ## 5. Шаблон коммита
 
