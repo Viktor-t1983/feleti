@@ -26,7 +26,19 @@
 
 ### Backend
 - [x] ✅ Каркас FastAPI (main.py, config.py, security.py, session.py)
-- [x] ✅ Модели: User, Manufacturer
+- [x] ✅ Модели: User, Manufacturer (с is_our_brand/is_competitor/sort_order)
+- [x] ✅ Модель Chamber
+- [x] ✅ Модель Product
+- [x] ✅ Модель Ingredient
+- [x] ✅ Модель Recipe + RecipeVersion + RecipeApproval
+- [x] ✅ Модель Brine
+- [x] ✅ Модель Batch + BatchPhase + BatchTelemetry
+- [x] ✅ Модель KnowledgeArticle + KnowledgeAttachment
+- [x] ✅ Модель AuditLog
+- [x] ✅ Модель TelemetryReading
+- [x] ✅ Alembic — конфиг + env.py + script.py.mako (готов к revision --autogenerate)
+- [x] ✅ API v1: health + health/db эндпоинты
+- [x] ✅ Scripts: seed.py (7 производителей, 6 камер, 6 ингредиентов, 8 продуктов, 3 user)
 - [x] ✅ Драйверы: base.py (ChamberDriver interface)
 - [x] ✅ Драйверы: simulated.py (мок с физ-моделью)
 - [x] ✅ Драйверы: feleti_smok.py (Kinco + свой модуль)
@@ -34,16 +46,8 @@
 - [x] ⏳ Драйверы: fessmann.py (OPC UA, stub)
 - [x] ⏳ Драйверы: kerres.py (HTTP, stub)
 - [x] ⏳ Драйверы: mauting.py (Modbus TCP, stub)
-- [x] ⏳ Модель Chamber
-- [x] ⏳ Модель Product
-- [x] ⏳ Модель Ingredient
-- [x] ⏳ Модель Recipe + RecipeVersion + RecipeApproval
-- [x] ⏳ Модель Brine
-- [x] ⏳ Модель Batch + BatchPhase + BatchTelemetry
-- [x] ⏳ Модель KnowledgeArticle + KnowledgeAttachment + KnowledgeTag
-- [x] ⏳ Модель AuditLog
-- [x] ⏳ Модель TelemetryReading (с партициями)
-- [x] ⏳ Alembic — инициализация + первая миграция
+- [x] ⏳ **Сгенерировать первую миграцию** (`alembic revision --autogenerate -m "initial"`)
+- [x] ⏳ **Применить миграцию** (`alembic upgrade head` + seed)
 - [x] ⏳ API v1: auth (login/refresh/me)
 - [x] ⏳ API v1: users CRUD
 - [x] ⏳ API v1: manufacturers CRUD

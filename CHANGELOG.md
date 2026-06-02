@@ -7,14 +7,57 @@
 ## [Unreleased]
 
 ### В работе
-- Backend: модели chamber, product, ingredient, recipe, brine, batch, knowledge, audit
 - Backend: API v1 для всех сущностей
 - Frontend: init Next.js 14 + shadcn/ui + PWA
-- Seed-данные: 9 производителей, 18+ камер, 80+ рецептов (после расширения холодного копчения)
 - Реальный стенд FELETI-SMOK (R&D)
 - Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
 
 ### Added
+- **Backend: SQLAlchemy 2.0 модели** (сессия 4, 2026-06-02):
+  - `app/models/__init__.py` — реестр моделей.
+  - `app/models/chamber.py` — Chamber (FELETI-SMOK Profi H/C/U, Ижица, ...) + ChamberType enum.
+  - `app/models/product.py` — Product (Докторская, Сёмга х/к, ...) + ProductCategory enum (14 категорий).
+  - `app/models/ingredient.py` — Ingredient (мясо, щёпа по породам, соль, специи) + IngredientType enum + БЖУ/аллергены.
+  - `app/models/recipe.py` — Recipe (заголовок) + RecipeVersion (иммутабельная версия с программой фаз, посолом, ingredients, БЖУ, себестоимостью) + RecipeApproval (workflow: draft → pending → approved → archived).
+  - `app/models/brine.py` — Brine (отдельная сущность для переиспользования: dry/wet/injection/combo, salt%, sugar%, нитрит/нитрат ppm, специи).
+  - `app/models/batch.py` — Batch (партия) + BatchPhase (фаза с planned/actual) + BatchTelemetry (сырая телеметрия по партии).
+  - `app/models/knowledge.py` — KnowledgeArticle (база знаний, markdown/html) + KnowledgeAttachment (PDF/видео/изображения) + ArticleCategory enum (9 категорий).
+  - `app/models/telemetry.py` — TelemetryReading (поток от камер, 7 дней raw → агрегаты → архив 1 год).
+  - `app/models/audit.py` — AuditLog (все мутации: actor, action, entity, before/after, ip, ua, extra).
+- **Backend: Alembic-конфигурация:**
+  - `backend/alembic.ini` — настройки Alembic (async, TZ Europe/Minsk, формат имени файла).
+  - `backend/alembic/env.py` — async-режим, импорт всех моделей через `app.db.base`.
+  - `backend/alembic/script.py.mako` — шаблон миграции.
+- **Backend: API v1 каркас:**
+  - `app/api/v1/__init__.py` — api_router (агрегатор).
+  - `app/api/v1/endpoints/__init__.py` + `health.py` — health-check + health/db.
+- **Backend: scripts/seed.py:**
+  - Идемпотентный сид: 7 производителей (feleti, ijiza, mauting, fessmann, kerres, agros, reich), 6 камер (4 FELETI-SMOK + 2 Ижица), 6 ингредиентов (3 мяса + 2 щёпы + 2 соли), 8 продуктов, 3 demo-пользователя (admin/tech/operator).
+- **Backend: драйверы камер** (ранее):
+  - `app/drivers/base.py` — ChamberDriver (abstract) + ChamberCapabilities + ChamberTelemetry + ChamberProgramPhase.
+  - `app/drivers/__init__.py` — реестр через `@register("name")`.
+  - `app/drivers/simulated.py` — мок с физ-моделью (T_chamber, T_product, инерция, фазы).
+  - `app/drivers/feleti_smok.py` — FELETI-SMOK driver (Kinco :502 + свой модуль :503, полная карта регистров).
+  - `app/drivers/varmen.py` — Ижица Varmen-1 (Modbus TCP, DRAFT register map).
+- `backend/pyproject.toml` — добавлен `pymodbus==3.7.4` для Varmen/FELETI-SMOK драйверов.
+- `backend/app/models/manufacturer.py` — расширен: is_our_brand, is_competitor, sort_order (нужны для бренда FELETI + сортировки в каталоге).
+- `backend/app/core/config.py`, `security.py`, `db/session.py`, `db/base.py` — ранее созданы.
+- `docs/research/{README,ijiza,mauting,fessmann,kerres,dilers}/README.md` — план глубокого парсинга (ранее).
+- `docs/cameras/feleti-smok/SPEC.md` — спецификация камер FELETI-SMOK Profi H/C/U (ранее).
+- `docs/RECIPES_BASE.md` — 80+ рецептов (ранее).
+- `docs/SKILL_SMOKING.md` — расширен холодным копчением, охлаждением, заморозкой (ранее).
+
+### Fixed
+- `db/base.py` — убраны несуществующие импорты (ChamberFeature, RecipeStep, RecipeIngredient, BrineIngredient, BatchReading, Gost, TelegramChannel, Video). Теперь импортируются реальные классы.
+- `telemetry.py` — у колонки `source` указан тип `String(50)` (раньше был без типа + неправильный `server_default=func.now()`).
+- `product.py` — FK `base_recipe_id → recipes.id` теперь с `use_alter=True` (избегаем циклической зависимости с `Recipe.product_id`).
+- `manufacturer.py` — убран опасный `cascade="all, delete-orphan"` на chambers (иначе удаление производителя = удаление всех камер с потерей истории партий).
+
+### Notes
+- Backend не запускается локально без `pip install -e .` (SQLAlchemy 1.4 → 2.0, asyncpg, pymodbus). Проверка — только в Docker-окружении (`docker compose up backend`).
+- Все 28 Python-файлов проходят `ast.parse` без ошибок.
+- Модели готовы к autogenerate миграции: `docker compose exec backend alembic revision --autogenerate -m "initial"` (после запуска контейнера).
+- Seed-скрипт идемпотентен: повторный запуск не дублирует записи (по slug/email).
 - **Линейка FELETI-SMOK расширена** (сессия 3, по запросу пользователя):
   - Profi H (горячее): 100/150/200/250 кг.
   - **Profi C (холодное + охлаждение, новинка):** 100/200/250 кг с холодильным агрегатом.

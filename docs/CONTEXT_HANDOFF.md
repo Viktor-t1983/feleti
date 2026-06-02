@@ -67,57 +67,65 @@
 
 ## 4. Сводка последней сессии
 
-### Сессия от 2026-06-02 (продолжение foundation phase, +расширение hardware-стратегии)
+### Сессия от 2026-06-02 (сессия 4: backend — модели + Alembic + API v1 каркас + seed)
 - **Что сделано:**
-  - **Приняты 2 главные роли** (по запросу пользователя): главный разработчик софта + главный технолог по копчению.
-  - **Расширена линейка FELETI-SMOK** (по запросу пользователя — холодное копчение + охлаждение у Ижицы):
-    - **Profi H** (горячее): 100/150/200/250 кг.
-    - **Profi C** (холодное + охлаждение): 100/200/250 кг с холодильным агрегатом.
-    - **Profi U** (универсал): 200/250 кг — горячее + холодное + электро + охлаждение в одной камере.
-    - **C-Ultra / U-Frost** (опция): заморозка полуфабриката.
-  - **Расширена база рецептов до 80+** (холодное копчение + охлаждение + полугорячее + сыры/прочее).
-  - **Расширена `docs/SKILL_SMOKING.md`** — детальные секции по холодному копчению, охлаждению, заморозке.
-  - **Создана структура `docs/research/`** — план глубокого парсинга конкурентов:
-    - `README.md` — общий план (P0–P3).
-    - `ijiza/README.md` — детальный план парсинга Ижицы (сайт, каталоги, TG, YouTube, дилеры, контроллер).
-    - `mauting/README.md`, `fessmann/README.md`, `kerres/README.md` — планы P1.
-    - `dilers/README.md` — план по дилерам в РФ/СНГ (Яндекс.Карты, 2ГИС, форумы, выставки).
-  - **Скрипты парсинга** — каркасы описаны в `docs/research/README.md` (web_parser, pdf_parser, telegram_parser, youtube_parser).
-  - Обновлены CHANGELOG.md, TODO.md (добавлены задачи парсинга).
+  - **Backend: 11 моделей SQLAlchemy 2.0 созданы и прошли ast-parse**:
+    - Chamber, Product, Ingredient, Recipe + RecipeVersion + RecipeApproval, Brine, Batch + BatchPhase + BatchTelemetry, KnowledgeArticle + KnowledgeAttachment, TelemetryReading, AuditLog, User, Manufacturer.
+    - `app/models/__init__.py` — реестр моделей (Alembic видит все).
+  - **Backend: Alembic-конфигурация**:
+    - `alembic.ini` (TZ Europe/Minsk, async URL).
+    - `alembic/env.py` (async-режим, импорт всех моделей).
+    - `alembic/script.py.mako` (шаблон миграции).
+  - **Backend: API v1 каркас**:
+    - `app/api/v1/__init__.py` + `endpoints/health.py` (health + health/db).
+  - **Backend: seed.py** — идемпотентный сид 7 производителей, 6 камер (4 FELETI-SMOK + 2 Ижица), 6 ингредиентов, 8 продуктов, 3 demo-пользователя.
+  - **Backend: драйверы камер** (были созданы в сессии 3):
+    - `app/drivers/{base,simulated,feleti_smok,varmen}.py` — 4 файла, 740 строк, с полным Modbus TCP / физ-моделями / Kinco + extension register map.
+  - **Backend: __init__.py** для `app/`, `app/api/`, `app/api/v1/`, `app/api/v1/endpoints/`, `app/core/`, `app/db/`, `app/models/`, `app/scripts/`, `app/drivers/`.
+  - **Fixed**: db/base.py (убраны несущ. классы), telemetry.source (тип String), product.base_recipe_id (use_alter), manufacturer.chambers (cascade удалён).
+  - Добавлен `pymodbus==3.7.4` в `pyproject.toml`.
 
 - **Какие файлы созданы/изменены:**
-  - **Созданы:** `docs/research/{README,ijiza/README,mauting/README,fessmann/README,kerres/README,dilers/README}.md` (6 файлов).
-  - **Изменены:**
-    - `docs/cameras/feleti-smok/SPEC.md` — добавлены Profi C и Profi U линейки, холодильный агрегат, программы холодного копчения, охлаждения, заморозки.
-    - `docs/RECIPES_BASE.md` — расширена база рецептов до 80+ (добавлены холодное, полугорячее, охлаждение, сыры/прочее).
-    - `docs/SKILL_SMOKING.md` — детальные секции по холодному копчению, охлаждению, заморозке.
-    - `CHANGELOG.md`, `TODO.md` — отмечены новые задачи парсинга.
+  - **Созданы (всего 24 новых файла):**
+    - `backend/app/models/{__init__,chamber,product,ingredient,recipe,brine,batch,knowledge,telemetry,audit}.py` (10).
+    - `backend/app/api/v1/{__init__,endpoints/__init__,endpoints/health}.py` (3).
+    - `backend/app/scripts/{__init__,seed}.py` (2).
+    - `backend/app/{__init__,core/__init__,api/__init__,db/__init__}.py` (4).
+    - `backend/alembic.ini`, `backend/alembic/{env.py,script.py.mako}` (3).
+  - **Изменены:** `backend/pyproject.toml` (+pymodbus), `backend/app/models/manufacturer.py` (расширен), `backend/app/models/product.py` (use_alter), `backend/app/models/telemetry.py` (тип колонки), `backend/app/db/base.py` (реестр), `CHANGELOG.md`, `TODO.md`.
 
 - **Что блокирует:**
   - 🚫 Нет Telethon API_ID/HASH от пользователя → нельзя начать парсинг TG-каналов.
   - 🚫 Не подтверждена карта Modbus-регистров Varmen-1 (нужны Wireshark или реальное устройство).
   - 🚫 Не выбран GitHub-репозиторий (отложено на потом).
   - 🚫 Не определены точные ТТХ камер FELETI-SMOK (нужны эскизы от инженеров).
+  - 🆕 Нет Docker-окружения для запуска `alembic revision --autogenerate` (нужен `docker compose up`).
 
 - **Следующие шаги для новой сессии (по приоритету):**
-  1. ⏳ Реализовать `backend/app/services/web_parser.py` (полная версия).
-  2. ⏳ Спарсить [ijiza.ru](https://ijiza.ru) — каталог продукции, карточки 18+ моделей.
-  3. ⏳ Скачать PDF-каталог Ижица 2024, распарсить через `pdf_parser.py`.
-  4. ⏳ Backend: модели (chamber, product, ingredient, recipe, brine, batch, knowledge, audit, telemetry).
-  5. ⏳ Backend: Alembic — инициализация и первая миграция.
-  6. ⏳ Backend: API v1 для auth, manufacturers, chambers, recipes, batches, telemetry (WebSocket).
-  7. ⏳ Backend: services (recipe_workflow, recipe_calc, chamber_gateway, telemetry, knowledge).
-  8. ⏳ Backend: workers (Celery) для parse_telegram, parse_pdf, send_report.
-  9. ⏳ Backend: seed-скрипт (9 производителей, 18+ камер, 80+ рецептов).
-  10. ⏳ Frontend: init Next.js 14 + TypeScript + Tailwind + shadcn/ui.
-  11. ⏳ Frontend: PWA manifest + service worker (Workbox).
-  12. ⏳ Frontend: Login, Dashboard, Chambers, Recipes (с конструктором и версионированием), Batches.
-  13. ⏳ Hardware: детальные KINCO_REGISTER_MAP.md, EXTENSION_MODULE.md, SCHEMATIC.md, BOM.md, HMI_PROGRAM.md, TEST_PROCEDURE.md для FELETI-SMOK.
-  14. ⏳ Реализовать `telegram_parser.py` (Telethon) после получения API_ID/HASH.
-  15. ⏳ Реализовать `youtube_parser.py` (yt-dlp + Whisper), транскрибировать 10+ видео.
-  16. ⏳ Собрать 10+ дилеров Ижица в РФ (Яндекс.Карты, 2ГИС, форумы).
+  1. 🔄 `docker compose up` + дождаться healthy у backend.
+  2. ⏳ `alembic revision --autogenerate -m "initial models"` (сгенерировать миграцию).
+  3. ⏳ `alembic upgrade head` + `python -m app.scripts.seed` — применить миграцию и засеять.
+  4. ⏳ Проверить: `curl http://localhost:8000/api/v1/health` → `{"status": "ok"}`.
+  5. ⏳ **Backend: API v1: auth (login/refresh/me)** + JWT-middleware.
+  6. ⏳ **Backend: API v1: manufacturers CRUD** (первый полный эндпоинт).
+  7. ⏳ **Backend: API v1: chambers CRUD** (с driver_class → реестр драйверов).
+  8. ⏳ **Backend: API v1: products + ingredients + recipes + brines CRUD** (Pydantic v2 schemas).
+  9. ⏳ **Backend: API v1: batches CRUD + start/pause/stop** (через ChamberGateway).
+  10. ⏳ **Backend: API v1: telemetry WebSocket** (Redis pub/sub + FastAPI WS).
+  11. ⏳ **Backend: API v1: knowledge CRUD + search**.
+  12. ⏳ **Backend: services/**: recipe_workflow, recipe_calc, chamber_gateway, telemetry, knowledge.
+  13. ⏳ **Frontend: init Next.js 14 + TypeScript + Tailwind + shadcn/ui**.
+  14. ⏳ **Frontend: PWA manifest + service worker** (Workbox).
+  15. ⏳ **Frontend: Login + Dashboard + Chambers + Recipes + Batches**.
+  16. ⏳ Реализовать `web_parser.py` + спарсить ijiza.ru.
+  17. ⏳ Скачать PDF-каталог Ижица 2024 + `pdf_parser.py`.
+  18. ⏳ Hardware: KINCO_REGISTER_MAP.md, EXTENSION_MODULE.md, SCHEMATIC.md, BOM.md для FELETI-SMOK.
+  19. ⏳ Реализовать `telegram_parser.py` (Telethon) после получения API_ID/HASH.
+  20. ⏳ Реализовать `youtube_parser.py` (yt-dlp + Whisper), транскрибировать 10+ видео.
 
 - **Открытые вопросы к пользователю:** см. `OPEN_QUESTIONS.md` (hardware FELETI-SMOK, монетизация, демо-камера, сроки, Telethon API_ID/HASH).
+
+### Сессия от 2026-06-02 (продолжение foundation phase, +расширение hardware-стратегии)
 
 ## 5. Шаблон коммита
 
