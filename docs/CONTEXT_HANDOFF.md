@@ -127,6 +127,35 @@
 
 ### Сессия от 2026-06-02 (продолжение foundation phase, +расширение hardware-стратегии)
 
+### Сессия от 2026-06-02 (API v1: auth/manufacturers/chambers/products/ingredients/brines/recipes)
+- Добавлено 8 групп эндпоинтов + Pydantic v2 схемы + services/auth (логин, refresh, register) + services/audit.
+- `app/core/deps.py` — `oauth2_scheme`, `DBSession`, `CurrentUser`, `require_roles(*roles)`.
+- Убран дубль `/api/v1/health` (был конфликт 409).
+- `chamber.manufacturer_id` ondelete CASCADE → RESTRICT.
+- `recipes.create` — flush obj перед созданием версии.
+- `Annotated[PageParams, Query()]` для FastAPI 0.115+.
+- `pyproject.toml`: +pydantic[email]==2.10.3 для EmailStr.
+- Коммит: `6d55c7e`.
+
+### Сессия от 2026-06-02 (ChamberGateway + batches lifecycle)
+- `app/services/chamber_gateway.py` — singleton с пулом драйверов по `chamber_id`, lazy init, auto-reconnect, кольцевой буфер телеметрии 3600 точек, fan-out подписки.
+- `app/api/v1/endpoints/batches.py` — CRUD + `start/pause/resume/cancel/complete` через `ChamberGateway`.
+- Создание партии требует APPROVED/PENDING версию рецепта.
+- Удаление только для PLANNED/CANCELLED/COMPLETED.
+- При недоступности камеры `start` возвращает 502; `cancel/complete` работают даже при недоступной камере.
+- `app/schemas/batch.py` — BatchRead/Detail/Create/Update/StatusChange/PhaseRead.
+- `AuditAction`: +CANCEL, +COMPLETE.
+- **56 Python-файлов** проходят `ast.parse` + `py_compile`.
+- Коммит: `4e9d41c`.
+
+### Следующий приоритет (любой из):
+1. **Alembic**: первая миграция `alembic revision --autogenerate -m "initial"` + `alembic upgrade head` + `python -m app.scripts.seed` (нужен Docker).
+2. **telemetry WebSocket** endpoint: `GET /chambers/{id}/telemetry/ws` (Fan-out из ChamberGateway).
+3. **knowledge CRUD** + search.
+4. **services/recipe_workflow** (draft→pending→approved→archived с авто-уведомлениями).
+5. **services/recipe_calc** (БЖУ, себестоимость, yield, время фазы).
+6. **Frontend init**: Next.js 14 + TypeScript + shadcn/ui + Tailwind + PWA.
+
 ## 5. Шаблон коммита
 
 Используем Conventional Commits + scope:
