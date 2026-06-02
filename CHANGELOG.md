@@ -7,13 +7,69 @@
 ## [Unreleased]
 
 ### В работе
-- Backend: API v1 для всех сущностей
+- Backend: API v1: batches (CRUD + start/pause/stop через ChamberGateway)
+- Backend: API v1: telemetry WebSocket (Redis pub/sub)
+- Backend: API v1: knowledge CRUD + search
+- Backend: services: recipe_workflow, recipe_calc, chamber_gateway, telemetry, knowledge
+- Backend: workers (Celery): parse_telegram, parse_pdf, send_report
 - Frontend: init Next.js 14 + shadcn/ui + PWA
 - Реальный стенд FELETI-SMOK (R&D)
 - Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
 
-### Added
-- **Backend: SQLAlchemy 2.0 модели** (сессия 4, 2026-06-02):
+### Added (сессия 5, 2026-06-02 — backend API v1)
+- **API v1: auth** (`backend/app/api/v1/endpoints/auth.py`):
+  - `POST /auth/login` (OAuth2 password flow, для Swagger UI).
+  - `POST /auth/login/json` (JSON-вариант для PWA).
+  - `POST /auth/refresh` (refresh-токены, 7× access TTL).
+  - `GET /auth/me` (текущий пользователь, с аудит-логом).
+- **API v1: manufacturers CRUD** (пагинация, фильтры `is_our_brand`/`is_competitor`, аудит).
+- **API v1: chambers CRUD** (фильтры по типу, поддержке электро/холода, verified; валидация `driver_class` через реестр; `GET /chambers/drivers` для списка драйверов).
+- **API v1: products CRUD** (фильтр по категории).
+- **API v1: ingredients CRUD** (фильтры по `type` и `wood_species` для щепы).
+- **API v1: brines CRUD** (фильтр по `method`).
+- **API v1: recipes CRUD + версионирование**:
+  - Создание рецепта с опциональной первой иммутабельной версией.
+  - `GET /recipes/{id}/versions` — список версий.
+  - `POST /recipes/{id}/versions` — создание новой версии (авто-инкремент version_number).
+- **Pydantic v2 schemas** (`backend/app/schemas/`):
+  - `common.py` (APIModel, Page[T], PageParams, HealthResponse, MessageResponse).
+  - `auth.py` (LoginRequest, RefreshRequest, Token, TokenPayload).
+  - `user.py` (UserRead, UserCreate, UserUpdate, UserRoleEnum).
+  - `manufacturer.py`, `chamber.py`, `product.py`, `ingredient.py`, `brine.py`, `recipe.py` — Read/Create/Update + Enum-ы.
+  - Все схемы: `from_attributes=True`, `use_enum_values=True` (корректная сериализация enum в JSON).
+- **Backend: services/**
+  - `audit.py` — запись событий в AuditLog.
+  - `auth.py` — аутентификация (login по username/email, выдача access+refresh, обновление last_login_at, регистрация).
+- **Backend: deps**
+  - `app/core/deps.py` — `oauth2_scheme`, `DBSession`, `CurrentUser`, `require_roles(...)` (RBAC dependency factory).
+- **Alembic/Backend fixes**:
+  - `chamber.py` — `manufacturer_id` теперь `ondelete="RESTRICT"` (раньше был CASCADE; удаление производителя больше не уничтожает историю партий).
+  - `user.py` — добавлен `__repr__`.
+  - `main.py` — убран дубль `/api/v1/health` (был конфликт с `api_router`).
+  - `pyproject.toml` — добавлен `pydantic[email]==2.10.3` (для `EmailStr`).
+
+### Fixed
+- **Конфликт маршрутов**: `main.py:41` объявлял `@app.get("/api/v1/health")` и `api_router.health` тоже на `/health` → FastAPI выдавал 409. Удалён дубль.
+- **EmailStr без зависимости**: в `pydantic` v2 `EmailStr` требует `pydantic[email]`. Добавлено в `pyproject.toml`.
+- **PageParams как query**: исправлено на `params: Annotated[PageParams, Query()]` во всех эндпоинтах (иначе FastAPI ожидал body).
+- **recipes.create race**: `RecipeVersion.recipe=obj` создавался ДО flush `obj` (когда `obj.id=None`). Теперь сначала flush, потом version с явным `recipe_id=obj.id`.
+
+### Notes
+- **53 файла проходят `ast.parse`** без ошибок.
+- API v1 endpoints требуют **JWT-аутентификации** (кроме `/health`, `/auth/login`, `/auth/login/json`, `/auth/refresh`). Все остальные endpoints используют `CurrentUser` dependency.
+- Все мутации (CREATE/UPDATE/DELETE) пишут в `audit_logs` с actor_id, before/after, ip, user_agent.
+- Идемпотентность API не реализована (Idempotency-Key) — это для следующей сессии.
+
+---
+
+## [Unreleased] (предыдущая сессия)
+
+### В работе (на момент завершения сессии 4)
+- Backend: API v1 для всех сущностей
+- Frontend: init Next.js 14 + shadcn/ui + PWA
+- Реальный стенд FELETI-SMOK (R&D)
+
+### Added (сессия 4, 2026-06-02 — модели + Alembic + каркас)
   - `app/models/__init__.py` — реестр моделей.
   - `app/models/chamber.py` — Chamber (FELETI-SMOK Profi H/C/U, Ижица, ...) + ChamberType enum.
   - `app/models/product.py` — Product (Докторская, Сёмга х/к, ...) + ProductCategory enum (14 категорий).

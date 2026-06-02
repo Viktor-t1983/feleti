@@ -34,3 +34,6 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    def __repr__(self) -> str:
+        return f"<User {self.id} {self.username} ({self.role.value})>"

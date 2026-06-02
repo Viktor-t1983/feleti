@@ -32,7 +32,7 @@ class Chamber(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     manufacturer_id: Mapped[int] = mapped_column(
-        ForeignKey("manufacturers.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("manufacturers.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     model: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False, index=True)

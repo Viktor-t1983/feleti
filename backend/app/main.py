@@ -37,15 +37,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.get(f"{settings.API_V1_PREFIX}/health", tags=["system"])
-async def healthcheck() -> dict:
-    return {
-        "status": "ok",
-        "project": settings.PROJECT_NAME,
-        "version": settings.APP_VERSION,
-        "env": settings.ENV,
-    }
-
-
+# --- Роутеры (включая /api/v1/health внутри api_router) ---
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)

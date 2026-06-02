@@ -37,7 +37,17 @@
 - [x] ✅ Модель AuditLog
 - [x] ✅ Модель TelemetryReading
 - [x] ✅ Alembic — конфиг + env.py + script.py.mako (готов к revision --autogenerate)
-- [x] ✅ API v1: health + health/db эндпоинты
+- [x] ✅ API v1: health + health/db
+- [x] ✅ API v1: auth (login + login/json + refresh + me)
+- [x] ✅ API v1: manufacturers CRUD
+- [x] ✅ API v1: chambers CRUD + /drivers
+- [x] ✅ API v1: products CRUD
+- [x] ✅ API v1: ingredients CRUD
+- [x] ✅ API v1: brines CRUD
+- [x] ✅ API v1: recipes CRUD + versions (create new version)
+- [x] ✅ Pydantic v2 schemas для всех сущностей
+- [x] ✅ Services: audit (record), auth (authenticate, issue_tokens, register_user)
+- [x] ✅ Core: deps (oauth2_scheme, DBSession, CurrentUser, require_roles)
 - [x] ✅ Scripts: seed.py (7 производителей, 6 камер, 6 ингредиентов, 8 продуктов, 3 user)
 - [x] ✅ Драйверы: base.py (ChamberDriver interface)
 - [x] ✅ Драйверы: simulated.py (мок с физ-моделью)
@@ -48,22 +58,15 @@
 - [x] ⏳ Драйверы: mauting.py (Modbus TCP, stub)
 - [x] ⏳ **Сгенерировать первую миграцию** (`alembic revision --autogenerate -m "initial"`)
 - [x] ⏳ **Применить миграцию** (`alembic upgrade head` + seed)
-- [x] ⏳ API v1: auth (login/refresh/me)
 - [x] ⏳ API v1: users CRUD
-- [x] ⏳ API v1: manufacturers CRUD
-- [x] ⏳ API v1: chambers CRUD
-- [x] ⏳ API v1: products CRUD
-- [x] ⏳ API v1: ingredients CRUD
-- [x] ⏳ API v1: recipes + versioning + workflow
-- [x] ⏳ API v1: brines CRUD
-- [x] ⏳ API v1: batches CRUD + start/pause/stop
-- [x] ⏳ API v1: telemetry (WebSocket)
+- [x] ⏳ API v1: batches CRUD + start/pause/stop (через ChamberGateway)
+- [x] ⏳ API v1: telemetry WebSocket (Redis pub/sub)
 - [x] ⏳ API v1: knowledge CRUD + search
 - [x] ⏳ API v1: chat (in-app) + RAG
 - [x] ⏳ API v1: reports + PDF
 - [x] ⏳ Services: recipe_workflow (draft→pending→approved→archived)
 - [x] ⏳ Services: recipe_calc (БЖУ, себестоимость, yield)
-- [x] ⏳ Services: chamber_gateway (абстракция)
+- [x] ⏳ Services: chamber_gateway (абстракция + пул инстансов)
 - [x] ⏳ Services: telemetry (буферизация, batch insert)
 - [x] ⏳ Services: knowledge (поиск, тегирование)
 - [x] ⏳ Services: chat (RAG/AI)
