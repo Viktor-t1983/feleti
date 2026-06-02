@@ -7,14 +7,51 @@
 ## [Unreleased]
 
 ### В работе
-- Backend: API v1: batches (CRUD + start/pause/stop через ChamberGateway)
 - Backend: API v1: telemetry WebSocket (Redis pub/sub)
 - Backend: API v1: knowledge CRUD + search
-- Backend: services: recipe_workflow, recipe_calc, chamber_gateway, telemetry, knowledge
+- Backend: services: recipe_workflow, recipe_calc, telemetry, knowledge
 - Backend: workers (Celery): parse_telegram, parse_pdf, send_report
 - Frontend: init Next.js 14 + shadcn/ui + PWA
 - Реальный стенд FELETI-SMOK (R&D)
 - Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
+
+### Added (сессия 5, 2026-06-02 — backend API v1, часть 2: batches + gateway)
+- **API v1: batches** (`backend/app/api/v1/endpoints/batches.py`):
+  - `GET /batches` — пагинация + фильтры по `chamber_id`, `recipe_id`, `status`.
+  - `GET /batches/{id}` — детальная карточка с фазами.
+  - `POST /batches` — создание в PLANNED (с проверкой версии рецепта и камеры; версия рецепта должна быть APPROVED/PENDING).
+  - `PATCH /batches/{id}` — обновление метаданных.
+  - `DELETE /batches/{id}` — только для PLANNED/CANCELLED/COMPLETED.
+  - `POST /batches/{id}/start` — загрузить программу в камеру через ChamberGateway и стартовать.
+  - `POST /batches/{id}/pause` — пауза.
+  - `POST /batches/{id}/resume` — снять с паузы.
+  - `POST /batches/{id}/cancel` — остановить камеру + CANCELLED (с опциональной note).
+  - `POST /batches/{id}/complete` — остановить камеру + COMPLETED.
+- **ChamberGateway** (`backend/app/services/chamber_gateway.py`):
+  - Singleton с пулом драйверов по `chamber_id` (lazy init + auto-reconnect).
+  - Кольцевой буфер телеметрии на камеру (3600 точек ≈ 1 час @ 1 Hz).
+  - Подписки (fan-out) для будущего WebSocket.
+  - `start_batch(chamber_id, driver_class, connection, recipe_program)` — главный метод запуска.
+  - Защита от двойного подключения (per-chamber asyncio.Lock).
+- **Pydantic v2: schemas/batch.py**:
+  - `BatchRead`, `BatchDetail`, `BatchCreate`, `BatchUpdate`, `BatchStatusChange`, `BatchPhaseRead`.
+- **AuditAction**: добавлены `CANCEL`, `COMPLETE` (раньше не было).
+- Все 56 Python-файлов проходят `ast.parse` и `py_compile`.
+
+### Notes
+- Жизненный цикл партии: `PLANNED → RUNNING → PAUSED ⇄ RUNNING → COMPLETED | CANCELLED`.
+- Удаление разрешено только для финальных статусов (PLANNED/CANCELLED/COMPLETED).
+- При недоступности камеры (502) партия НЕ стартует и остаётся в прежнем статусе; cancel/complete работают даже при недоступной камере.
+- ChamberGateway.shutdown() — не вызывается автоматически; добавить в lifespan при старте FastAPI (следующая сессия).
+
+---
+
+## [Unreleased] (предыдущая сессия)
+
+### В работе (на момент завершения сессии 4)
+- Backend: API v1 для всех сущностей
+- Frontend: init Next.js 14 + shadcn/ui + PWA
+- Реальный стенд FELETI-SMOK (R&D)
 
 ### Added (сессия 5, 2026-06-02 — backend API v1)
 - **API v1: auth** (`backend/app/api/v1/endpoints/auth.py`):

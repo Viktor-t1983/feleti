@@ -7,6 +7,7 @@ api_router = APIRouter()
 # Подключаем все эндпоинты
 from app.api.v1.endpoints import (  # noqa: E402, F401
     auth,
+    batches,
     brines,
     chambers,
     health,
@@ -25,3 +26,4 @@ api_router.include_router(products.router, prefix="/products", tags=["products"]
 api_router.include_router(ingredients.router, prefix="/ingredients", tags=["ingredients"])
 api_router.include_router(brines.router, prefix="/brines", tags=["brines"])
 api_router.include_router(recipes.router, prefix="/recipes", tags=["recipes"])
+api_router.include_router(batches.router, prefix="/batches", tags=["batches"])

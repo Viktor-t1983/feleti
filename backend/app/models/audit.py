@@ -28,6 +28,8 @@ class AuditAction(str, PyEnum):
     PAUSE = "pause"
     RESUME = "resume"
     STOP = "stop"
+    CANCEL = "cancel"
+    COMPLETE = "complete"
     EXPORT = "export"
     IMPORT = "import"
     OTHER = "other"
