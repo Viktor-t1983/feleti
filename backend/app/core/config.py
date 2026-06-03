@@ -48,6 +48,18 @@ class Settings(BaseSettings):
     def cors_origins(self) -> List[str]:
         return [i.strip() for i in self.BACKEND_CORS_ORIGINS.split(",") if i.strip()]
 
+    # --- Celery ---
+    CELERY_BROKER_URL: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
+    CELERY_RESULT_BACKEND: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
+
+    # --- LLM ---
+    LLM_API_URL: str = ""
+    LLM_MODEL: str = "llama3.2"
+
+    # --- Telegram ---
+    TELEGRAM_API_ID: str = ""
+    TELEGRAM_API_HASH: str = ""
+
     # --- App ---
     APP_VERSION: str = "0.1.0"
 

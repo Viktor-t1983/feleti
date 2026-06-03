@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (  # noqa: E402, F401
     ingredients,
     knowledge,
     manufacturers,
+    pipeline,
     products,
     recipes,
     telemetry,
@@ -35,3 +36,4 @@ api_router.include_router(batches.router, prefix="/batches", tags=["batches"])
 api_router.include_router(telemetry.router, prefix="/chambers", tags=["telemetry"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(competitors.router, prefix="/competitors", tags=["competitors"])
+api_router.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
