@@ -165,6 +165,7 @@
 | `recipe-calc` | Расчёт БЖУ, себестоимости, yield, формулы потерь |
 | `pytest-testing` | Написание юнит и интеграционных тестов |
 | `frontend-api-client` | Связка frontend ↔ backend: API-клиент, TanStack Query, auth |
+| `hmi-chamber` | HMI панель управления камерой: экраны, программы, графики, алерты |
 | `program-visualizer` | Визуализация программ копчения: timeline, фазы, графики |
 | `quality-control` | Контроль качества: органолептика, лаборатория, дефекты |
 | `batch-monitoring` | Мониторинг партий: KPI, отклонения, алерты, дашборды |
