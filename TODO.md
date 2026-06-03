@@ -25,6 +25,17 @@
 - [x] ✅ `docs/cameras/feleti-smok/SPEC.md` — спецификация камеры FELETI-SMOK
 - [x] ✅ AGENTS.md — обновлен: роли агента + 19 скиллов
 - [x] ✅ 9 новых SKILL.md: db-migrations, frontend-init, recipe-calc, pytest-testing, frontend-api-client, program-visualizer, quality-control, batch-monitoring, pdf-report
+- [x] ✅ Система persistence контекста между сессиями
+  - `.opencode/session/README.md` — описание системы
+  - `.opencode/session/TEMPLATE.md` — шаблон новой сессии
+  - `.opencode/session/CHECKLIST.md` — чек-лист конца сессии
+  - `.opencode/session/history/2026-06-03_0937_session_6.md` — первая запись
+  - `scripts/verify_context.py` — скрипт проверки целостности
+- [x] ✅ Docker Compose up — все сервисы запущены
+- [x] ✅ Alembic — первая миграция сгенерирована и применена
+- [x] ✅ Seed — данные засеяны (7 manufacturers, 6 chambers, 6 ingredients, 8 products, 3 users)
+- [x] ✅ Backend health check — `{"status":"ok"}`
+- [x] ⏳ pytest — тесты не реализованы
 
 ### Backend
 - [x] ✅ Каркас FastAPI (main.py, config.py, security.py, session.py)

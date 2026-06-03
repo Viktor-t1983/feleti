@@ -26,6 +26,16 @@
   - `batch-monitoring` — KPI партий, алерты, отклонения, дашборд
   - `pdf-report` — генерация ТТК, актов КК, журналов партий через ReportLab
 - **Всего скиллов: 10 → 19** (10 старых + 9 новых).
+- **Docker Compose запущен**: db, redis, mosquitto, minio, adminer, backend — все сервисы работают.
+- **Alembic**: первая миграция `20260603_1047_529ad78b1f74_initial_models.py` сгенерирована и применена.
+- **Seed**: 7 manufacturers, 6 chambers, 6 ingredients, 8 products, 3 users — в БД.
+- **Исправления**: JSON импорт в ingredient.py, JSON index в knowledge.py (PostgreSQL btree), delete endpoints 204→200, orjson добавлен в pyproject.toml.
+- **Система persistence контекста** (чтобы информация между сессиями не терялась):
+  - `.opencode/session/README.md` — описание системы
+  - `.opencode/session/TEMPLATE.md` — шаблон новой сессии
+  - `.opencode/session/CHECKLIST.md` — чек-лист конца сессии
+  - `.opencode/session/history/*.md` — архив сессий
+  - `scripts/verify_context.py` — скрипт проверки целостности
 
 ### Сессия 5 — финал (2026-06-02)
 - Создан `RECOMMENDATIONS.md` с приоритетами на сессию 6.
