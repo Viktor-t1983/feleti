@@ -16,9 +16,9 @@ import { apiClient } from "@/lib/api/client";
 import Link from "next/link";
 
 interface RecipePhase {
-  phase: string;
-  temp: number;
-  time_min: number;
+  name: string;
+  duration_min: number;
+  t_chamber: number;
   humidity?: number;
 }
 
@@ -47,17 +47,6 @@ interface RecipePage {
   items: Recipe[];
   total: number;
 }
-
-const PHASE_LABELS: Record<string, string> = {
-  drying: "Сушка",
-  smoking: "Копчение",
-  cooking: "Варка",
-  shower: "Душирование",
-  salting: "Посол",
-  cooling: "Охлаждение",
-  freezing: "Заморозка",
-  prerun: "Прогрев",
-};
 
 async function fetchRecipes(): Promise<RecipePage> {
   const { data } = await apiClient.get("/recipes?size=50");
@@ -130,7 +119,7 @@ export default function RecipesPage() {
 function RecipeCard({ recipe, index }: { recipe: Recipe; index: number }) {
   const version = recipe.current_version;
   const phases = version?.program || [];
-  const totalTime = phases.reduce((sum, p) => sum + (p.time_min || 0), 0);
+  const totalTime = phases.reduce((sum, p) => sum + (p.duration_min || 0), 0);
 
   return (
     <motion.div
@@ -180,14 +169,14 @@ function RecipeCard({ recipe, index }: { recipe: Recipe; index: number }) {
               className="flex items-center gap-2 text-xs text-muted-foreground"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-feleti-gold" />
-              <span className="flex-1">{PHASE_LABELS[phase.phase] || phase.phase}</span>
+              <span className="flex-1">{phase.name}</span>
               <span className="flex items-center gap-1">
                 <Thermometer className="h-3 w-3" />
-                {phase.temp}°C
+                {phase.t_chamber}°C
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {phase.time_min} мин
+                {phase.duration_min} мин
               </span>
             </div>
           ))}
@@ -206,7 +195,7 @@ function RecipeCard({ recipe, index }: { recipe: Recipe; index: number }) {
             <Clock className="h-3 w-3" />
             {totalTime} мин
           </span>
-          {version?.yield_percent && (
+          {version?.yield_percent != null && (
             <span className="flex items-center gap-1">
               <Droplets className="h-3 w-3" />
               {version.yield_percent}% выход

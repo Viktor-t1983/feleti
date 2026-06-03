@@ -7,11 +7,37 @@
 ## [Unreleased]
 
 ### В работе
-- Knowledge Pipeline: запустить первый парсинг конкурентов через API
-- Telegram парсер (ждать API_ID/HASH от пользователя)
-- RAG endpoint (AI-копилот технолога)
+- Seed рецептов: 80+ рецептов в БД
+- Knowledge Pipeline: запустить парсинг конкурентов
 - HMI: анимация смены фазы, тревоги, адаптив под планшет
 - Реальный стенд FELETI-SMOK (R&D)
+
+### Added (сессия 10, 2026-06-03 — AI-модуль + FTS-поиск + RAG + импорт транскриптов)
+- **AI-модуль (backend):**
+  - `models/ai_settings.py` — модель AISettings (provider, endpoint, api_key, model_name, temperature, max_tokens, system_prompt, enabled)
+  - `services/ai_service.py` — универсальный OpenAI-совместимый клиент (Ollama / OpenAI / Custom)
+  - `api/v1/endpoints/ai.py` — эндпоинты: POST /ai/ask (RAG+LLM), POST /ai/analyze (структурирование), GET|PUT /ai/settings, POST /ai/test
+  - `schemas/ai.py` — Pydantic-схемы AI-запросов/ответов
+  - Миграция Alembic `0fe23cac1fd3_add_ai_settings`
+- **FTS-поиск (knowledge):**
+  - `endpoints/knowledge.py` — переведён на PostgreSQL FTS (tsvector) с fallback на ILIKE
+  - `schemas/knowledge.py` — RAGAnswer, RAGQuery схемы
+  - POST `/api/v1/knowledge/ask` — RAG-эндпоинт (FTS + группировка + сниппеты)
+- **AI-фронтенд:**
+  - `frontend/src/app/ai/page.tsx` — страница AI-ассистента (чат-интерфейс с источниками)
+  - `frontend/src/lib/api/ai.ts` — AI API клиент
+  - `frontend/src/types/ai.ts` — TypeScript типы AI
+  - `frontend/src/app/settings/page.tsx` — секция AI: провайдер, модель, endpoint, API key, temperature, тест
+  - Sidebar: добавлен пункт "AI-ассистент"
+- **Импорт транскриптов:**
+  - `scripts/import_transcripts.py` — импорт YouTube → KnowledgeArticle
+  - `scripts/fill_transcripts.py` — заполнение body_md полными текстами
+  - `scripts/clean_knowledge.py`, `clean_knowledge_v2.py`, `clean_knowledge_v3.py` — чистка статей Ижицы
+  - `scripts/crawl_competitors.py` — прямой скрипт парсинга конкурентов
+  - `backend/transcripts/` — 118 текстов транскриптов YouTube
+  - `backend/summary.json` — сводка по 75 импортированным статьям
+- **FTS-индекс:** создан `idx_knowledge_fts` (to_tsvector('russian'))
+- **Документация:** `docs/БАЗА_ЗНАНИЙ_КОПЧЕНИЕ.md` — 240 строк, 21 КБ база знаний (основы, Ижица, конкуренты, параметры, источники)
 
 ### Added (сессия 9, 2026-06-03 — Knowledge Pipeline + Celery + фронтенд HMI)
 - **Knowledge Pipeline (backend/services/):**

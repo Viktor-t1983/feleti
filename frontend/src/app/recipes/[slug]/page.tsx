@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   Tag,
   FileText,
+  ChefHat,
+  Beaker,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import Link from "next/link";
@@ -27,16 +29,22 @@ import {
 } from "recharts";
 
 interface RecipePhase {
-  phase: string;
-  temp: number;
-  time_min: number;
+  name: string;
+  duration_min: number;
+  t_chamber: number;
   humidity?: number;
+  smoke?: string;
+  wood_species?: string;
+  t_product_target?: number;
+  electro_voltage_kv?: number;
 }
 
 interface RecipeVersion {
   id: number;
   version_number: number;
   program: RecipePhase[];
+  ingredients: { name: string; percent?: number; mass_kg?: number }[];
+  brine: Record<string, unknown> | null;
   yield_percent: number | null;
   losses_percent: number | null;
   notes: string | null;
@@ -54,35 +62,25 @@ interface Recipe {
   current_version: RecipeVersion | null;
 }
 
-const PHASE_LABELS: Record<string, string> = {
-  drying: "Сушка",
-  smoking: "Копчение",
-  cooking: "Варка",
-  shower: "Душирование",
-  salting: "Посол",
-  cooling: "Охлаждение",
-  freezing: "Заморозка",
-  prerun: "Прогрев",
-};
-
 const PHASE_COLORS: Record<string, string> = {
-  drying: "#f59e0b",
-  smoking: "#c9a96e",
-  cooking: "#ef4444",
-  shower: "#3b82f6",
-  salting: "#8b5cf6",
-  cooling: "#06b6d4",
-  freezing: "#6366f1",
-  prerun: "#10b981",
+  Подсушка: "#f59e0b",
+  Копчение: "#c9a96e",
+  "Копчение электро": "#a78bfa",
+  Запекание: "#ef4444",
+  Варка: "#3b82f6",
+  Душирование: "#06b6d4",
+  Посол: "#8b5cf6",
+  Охлаждение: "#06b6d4",
+  Заморозка: "#6366f1",
+  Прогрев: "#10b981",
 };
 
-async function fetchRecipe(slug: string): Promise<Recipe> {
-  // API doesn't have slug endpoint, fetch all and filter
-  const { data } = await apiClient.get(`/recipes?size=50`);
-  const recipe = data.items.find((r: Recipe) => r.slug === slug);
-  if (!recipe) throw new Error("Рецепт не найден");
-  return recipe;
-}
+const SMOKE_LABELS: Record<string, string> = {
+  none: "Нет",
+  light: "Лёгкий",
+  medium: "Средний",
+  heavy: "Сильный",
+};
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -113,13 +111,13 @@ export default function RecipeDetailPage() {
 
   const version = recipe.current_version;
   const phases = version?.program || [];
-  const totalTime = phases.reduce((sum, p) => sum + (p.time_min || 0), 0);
+  const totalTime = phases.reduce((sum, p) => sum + (p.duration_min || 0), 0);
 
   const chartData = phases.map((p, i) => ({
-    name: `${PHASE_LABELS[p.phase] || p.phase} (${i + 1})`,
-    temp: p.temp,
-    time: p.time_min,
-    color: PHASE_COLORS[p.phase] || "#94a3b8",
+    name: `${p.name} (${i + 1})`,
+    temp: p.t_chamber,
+    time: p.duration_min,
+    color: PHASE_COLORS[p.name] || "#94a3b8",
   }));
 
   return (
@@ -173,24 +171,12 @@ export default function RecipeDetailPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard label="Общее время" value={`${totalTime} мин`} icon={Clock} />
-        <StatCard
-          label="Фаз"
-          value={`${phases.length}`}
-          icon={BookOpen}
-        />
-        {version?.yield_percent && (
-          <StatCard
-            label="Выход"
-            value={`${version.yield_percent}%`}
-            icon={Droplets}
-          />
+        <StatCard label="Фаз" value={`${phases.length}`} icon={BookOpen} />
+        {version?.yield_percent != null && (
+          <StatCard label="Выход" value={`${version.yield_percent}%`} icon={Droplets} />
         )}
-        {version?.losses_percent && (
-          <StatCard
-            label="Потери"
-            value={`${version.losses_percent}%`}
-            icon={Thermometer}
-          />
+        {version?.losses_percent != null && (
+          <StatCard label="Потери" value={`${version.losses_percent}%`} icon={Thermometer} />
         )}
       </div>
 
@@ -250,9 +236,11 @@ export default function RecipeDetailPage() {
               <tr className="border-b border-white/5 bg-white/5">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">№</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Фаза</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Температура</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">T камеры</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Время</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Влажность</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Дым</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Щепа</th>
               </tr>
             </thead>
             <tbody>
@@ -266,24 +254,25 @@ export default function RecipeDetailPage() {
                     <span className="inline-flex items-center gap-2">
                       <span
                         className="h-2 w-2 rounded-full"
-                        style={{
-                          backgroundColor:
-                            PHASE_COLORS[phase.phase] || "#94a3b8",
-                        }}
+                        style={{ backgroundColor: PHASE_COLORS[phase.name] || "#94a3b8" }}
                       />
-                      <span className="text-white">
-                        {PHASE_LABELS[phase.phase] || phase.phase}
-                      </span>
+                      <span className="text-white">{phase.name}</span>
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-white">
-                    {phase.temp}°C
+                    {phase.t_chamber}°C
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground">
-                    {phase.time_min} мин
+                    {phase.duration_min} мин
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground">
-                    {phase.humidity !== undefined ? `${phase.humidity}%` : "—"}
+                    {phase.humidity != null ? `${phase.humidity}%` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {phase.smoke ? (SMOKE_LABELS[phase.smoke] || phase.smoke) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {phase.wood_species || "—"}
                   </td>
                 </tr>
               ))}
@@ -291,6 +280,69 @@ export default function RecipeDetailPage() {
           </table>
         </div>
       </motion.div>
+
+      {/* Ingredients */}
+      {version?.ingredients && version.ingredients.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="rounded-2xl border border-white/5 bg-white/[0.02] p-5"
+        >
+          <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
+            <ChefHat className="h-4 w-4 text-feleti-gold" />
+            Ингредиенты
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {version.ingredients.map((ing, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2 text-sm"
+              >
+                <span className="text-white">{ing.name}</span>
+                <span className="text-muted-foreground">
+                  {ing.percent != null ? `${ing.percent}%` : ing.mass_kg ? `${ing.mass_kg} кг` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Brine */}
+      {version?.brine && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+          className="rounded-2xl border border-white/5 bg-white/[0.02] p-5"
+        >
+          <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
+            <Beaker className="h-4 w-4 text-feleti-gold" />
+            Посол
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {version.brine.method != null && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Метод: </span>
+                <span className="text-white">{String(version.brine.method)}</span>
+              </div>
+            )}
+            {version.brine.salt_percent != null && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Соли: </span>
+                <span className="text-white">{String(version.brine.salt_percent)}%</span>
+              </div>
+            )}
+            {version.brine.duration_hours != null && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Длительность: </span>
+                <span className="text-white">{String(version.brine.duration_hours)} ч</span>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Notes */}
       {version?.notes && (
@@ -308,15 +360,7 @@ export default function RecipeDetailPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  icon: React.ElementType;
-}) {
+function StatCard({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {
   return (
     <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
       <div className="flex items-center gap-2 mb-1">
@@ -343,4 +387,9 @@ function RecipeDetailSkeleton() {
       <div className="h-72 animate-pulse rounded-2xl bg-white/5" />
     </div>
   );
+}
+
+async function fetchRecipe(slug: string): Promise<Recipe> {
+  const { data } = await apiClient.get(`/recipes/by-slug/${slug}`);
+  return data;
 }

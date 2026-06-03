@@ -82,7 +82,7 @@
 - [x] ✅ API v1: knowledge CRUD + search
 - [x] ✅ API v1: recipe calc (current version + specific version)
 - [x] ✅ API v1: pipeline (crawl/transcribe/parse + статус задач)
-- [x] ⏳ API v1: chat (in-app) + RAG
+- [x] ✅ API v1: chat (in-app) + RAG
 - [x] ⏳ API v1: reports + PDF
 - [x] ⏳ Services: recipe_workflow (draft→pending→approved→archived)
 - [x] ✅ Services: recipe_calc (БЖУ, себестоимость, yield)
@@ -94,7 +94,7 @@
 - [x] ✅ API v1: pipeline CRUD (запуск парсинга + Celery задачи)
 - [x] ⏳ Services: telemetry (буферизация, batch insert)
 - [x] ⏳ Services: knowledge (поиск, тегирование)
-- [x] ⏳ Services: chat (RAG/AI)
+- [x] ✅ Services: chat (RAG/AI)
 - [x] ✅ Services: knowledge_pipeline.py (координатор сбора знаний)
 - [x] ✅ Services: web_crawler.py (парсинг сайтов конкурентов)
 - [x] ✅ Services: youtube_transcriber.py (транскрибация YouTube)
@@ -167,8 +167,9 @@
   - [x] ✅ Адаптивность
   - [x] ✅ Framer Motion анимации
   - [x] ✅ Frontend подключен к API (убран hardcoded)
-- [x] ⏳ База знаний (список, статьи, поиск)
-- [x] ⏳ Чат + AI-копилот
+- [x] ✅ База знаний (список, статьи, поиск, FTS)
+- [x] ✅ Чат + AI-копилот (страница /ai + RAG)
+- [x] ✅ Настройки AI (провайдер, модель, API key, temperature)
 - [x] ⏳ Отчёты
 - [x] ✅ Настройки — профиль + о системе
 
@@ -220,13 +221,16 @@
 
 ## 🟢 Фаза 0.4 — Knowledge + AI
 
-- [x] ⏳ База знаний (CRUD + поиск + теги)
-- [x] ⏳ In-app чат + RAG по базе знаний
+- [x] ✅ База знаний (CRUD + поиск + FTS + RAG)
+- [x] ✅ In-app чат + RAG по базе знаний
+- [x] ✅ AI-модуль (AISettings, AIService, chat/analyze/test endpoints)
+- [x] ✅ Настройка AI-провайдера через UI (/settings)
+- [x] ⏳ Streaming-чат (SSE/WebSocket)
 - [x] ⏳ Голосовое управление (Whisper + intent)
 - [x] ⏳ Telegram-парсер (Telethon)
 - [x] ⏳ PDF-парсер каталогов конкурентов
 - [x] ⏳ YouWhisper-транскрибация видео-обзоров
-- [x] ⏳ Сравнение с конкурентами (UI + данные)
+- [x] ✅ Сравнение с конкурентами (UI + данные)
 
 ---
 
@@ -250,29 +254,15 @@
 
 ## 📅 Ближайшие сессии (приоритет) — ОБНОВЛЕНО 2026-06-03
 
-> **Приоритет:** Knowledge Pipeline (сбор данных о продуктах) → HMI камеры → GitHub.
-> HMI камеры — почти готов (9 компонентов, WebSocket, keyboard, fullscreen). Тесты и железо — потом.
+> **Приоритет:** Seed рецептов (технологическая база) → Knowledge Pipeline → HMI polish.
+> AI-модуль готов, FTS-поиск включён, RAG endpoint работает.
 
-1. **Сессия 10 (Knowledge Pipeline — запуск):**
-   - Запустить `docker compose exec backend celery -A app.core.celery_app worker -l info` в фоне
-   - Парсинг Ижицы: `POST /api/v1/pipeline/crawl/competitor/ijiza`
-   - Парсинг конкурентов: Mauting, Fessmann, Kerres, AGROS
-   - Транскрибация YouTube-каналов конкурентов
-   - Парсинг PDF-каталогов
-   - Верификация данных в БД (KnowledgeArticle, CompetitorModel)
-
-2. **Сессия 11 (RAG endpoint):**
-   - LLM-поиск по базе знаний (AI-копилот технолога)
-   - /api/v1/knowledge/ask — вопрос → ответ на основе статей
-
-3. **Сессия 12 (HMI polish):**
-   - Анимация смены фазы (плавный переход)
-   - Тревоги и уведомления
-   - Адаптив под планшет (landscape)
-
-4. **Сессия 13 (seed + рецепты):** 80+ рецептов + 30+ ингредиентов + 10+ статей БЗ
-5. **Сессия 14 (тестирование):** pytest + интеграционные тесты + нагрузочное тестирование
-6. **Сессия 15 (реальный стенд):** FELETI-SMOK driver + Kinco PLC + интеграция
+1. **Сессия 11 (Seed рецептов):** Засеять 80+ рецептов из RECIPES_BASE.md (колбасы, рыба г/к, рыба х/к, мясо, сыры, снеки)
+2. **Сессия 12 (Knowledge Pipeline):** Парсинг Mauting, Fessmann, Kerres через API pipeline
+3. **Сессия 13 (HMI polish):** Анимация смены фазы, тревоги, адаптив под планшет
+4. **Сессия 14 (Streaming AI):** SSE/WebSocket для /ai чата
+5. **Сессия 15 (тестирование):** pytest + интеграционные тесты
+6. **Сессия 16 (реальный стенд):** FELETI-SMOK driver + Kinco PLC
 
 ---
 

@@ -61,6 +61,20 @@ async def list_recipes(
     )
 
 
+@router.get("/by-slug/{slug}", response_model=RecipeRead, summary="Рецепт по slug")
+async def get_recipe_by_slug(slug: str, db: DBSession, _user: CurrentUser) -> RecipeRead:
+    obj = await db.scalar(
+        select(Recipe)
+        .options(selectinload(Recipe.current_version))
+        .where(Recipe.slug == slug)
+    )
+    if obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Рецепт не найден"
+        )
+    return RecipeRead.model_validate(obj)
+
+
 @router.get("/{recipe_id}", response_model=RecipeRead, summary="Рецепт по ID")
 async def get_recipe(recipe_id: int, db: DBSession, _user: CurrentUser) -> RecipeRead:
     obj = await db.scalar(

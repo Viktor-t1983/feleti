@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Wifi, WifiOff, Droplets, Thermometer, Gauge } from "lucide-react";
+import { Wifi, WifiOff, Droplets, Thermometer, Gauge, AlertTriangle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { HmiData, TelemetryPoint, ChamberStatus } from "@/lib/types/chamber";
@@ -29,7 +29,7 @@ const MOCK_HMI: HmiData = {
   smoke_density: 35,
   fan_rpm: 1200,
   door_open: false,
-  current_phase: "smoking",
+  current_phase: "Копчение",
   phase_progress: 65,
   errors: [],
   status: "running",
@@ -39,6 +39,13 @@ const MOCK_HMI: HmiData = {
   electro_voltage: 0,
   electro_current: 0,
 };
+
+const MOCK_PHASES = [
+  { name: "Подсушка", duration_min: 20 },
+  { name: "Копчение", duration_min: 90 },
+  { name: "Запекание", duration_min: 90 },
+  { name: "Охлаждение", duration_min: 15 },
+];
 
 function generateMockHistory(): TelemetryPoint[] {
   const data: TelemetryPoint[] = [];
@@ -107,6 +114,7 @@ export function HmiDashboard({
 
   const displayHmi = connected ? hmi : MOCK_HMI;
   const displayHistory = history.length > 0 ? history : generateMockHistory();
+  const displayPhases = activeBatch?.program || MOCK_PHASES;
   const status = STATUS_CONFIG[displayHmi.status as ChamberStatus] || STATUS_CONFIG.idle;
 
   const effectiveStatus = batchStatus === "running" ? "running"
@@ -116,19 +124,38 @@ export function HmiDashboard({
     : (activeBatch && ["PLANNED", "planned"].includes(batchStatus || "")) ? "idle"
     : "idle";
 
+  const currentPhaseIndex = displayPhases.findIndex(
+    (p: { name: string; key?: string }) => p.name === displayHmi.current_phase || p.key === displayHmi.current_phase
+  );
+
+  const alarms = [];
+  if (displayHmi.t_chamber > 85) alarms.push("Температура камеры выше 85°C");
+  if (displayHmi.t_chamber > displayHmi.t_setpoint * 1.1 && displayHmi.t_setpoint > 0)
+    alarms.push("Превышение температуры камеры");
+  if (displayHmi.humidity > 95) alarms.push("Влажность выше 95%");
+  if (displayHmi.door_open) alarms.push("Дверь камеры открыта");
+
+  const allErrors = [...alarms, ...displayHmi.errors];
+  const hasAlarms = allErrors.length > 0;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-5"
     >
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${status.color} ${status.bg} ${status.border}`}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${hasAlarms ? "text-red-400 bg-red-500/10 border-red-500/20" : `${status.color} ${status.bg} ${status.border}`}`}
           >
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.pulseColor }} />
-            {status.label}
+            {hasAlarms ? (
+              <AlertTriangle className="h-3.5 w-3.5 animate-pulse" />
+            ) : (
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.pulseColor }} />
+            )}
+            {hasAlarms ? "Тревога" : status.label}
           </span>
           {displayHmi.batch_number && (
             <span className="rounded-md bg-feleti-gold/10 px-2.5 py-1 text-xs font-medium text-feleti-gold border border-feleti-gold/20">
@@ -156,7 +183,28 @@ export function HmiDashboard({
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Alarm banner */}
+      {hasAlarms && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 overflow-hidden"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-red-400" />
+            <h3 className="text-sm font-medium text-red-400">Тревоги</h3>
+          </div>
+          {allErrors.map((error, i) => (
+            <p key={i} className="text-sm text-red-400/80 flex items-center gap-2 ml-6">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-400 shrink-0" />
+              {error}
+            </p>
+          ))}
+        </motion.div>
+      )}
+
+      {/* Gauges grid - 2x2 on tablet, 4 cols on desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <TemperatureGauge
           label="Камера"
           value={displayHmi.t_chamber}
@@ -164,6 +212,8 @@ export function HmiDashboard({
           color="text-orange-400"
           bg="bg-orange-500/10"
           size="lg"
+          alarmHigh={85}
+          alarmLow={0}
         />
         <TemperatureGauge
           label="Продукт"
@@ -173,6 +223,7 @@ export function HmiDashboard({
           bg="bg-red-500/10"
           icon={Thermometer}
           size="lg"
+          alarmHigh={displayHmi.t_setpoint}
         />
         <TemperatureGauge
           label="Влажность"
@@ -183,6 +234,7 @@ export function HmiDashboard({
           bg="bg-blue-500/10"
           icon={Droplets}
           size="lg"
+          alarmHigh={95}
         />
         <TemperatureGauge
           label="Вентилятор"
@@ -196,7 +248,9 @@ export function HmiDashboard({
         />
       </div>
 
+      {/* Main content area */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left: Phase + Chart (2/3) */}
         <div className="lg:col-span-2 space-y-5">
           <PhaseProgress
             phaseKey={displayHmi.current_phase}
@@ -204,9 +258,14 @@ export function HmiDashboard({
             elapsedSeconds={elapsed}
             smokeDensity={displayHmi.smoke_density}
             doorOpen={displayHmi.door_open}
+            phases={displayPhases}
+            currentPhaseIndex={currentPhaseIndex >= 0 ? currentPhaseIndex : 0}
+            phaseElapsed={elapsed}
           />
           <MiniChart data={displayHistory} showHumidity />
         </div>
+
+        {/* Right: Camera + Status (1/3) */}
         <div className="space-y-5">
           <ChamberCamera enabled={false} />
           <StatusIndicators
@@ -229,7 +288,7 @@ export function HmiDashboard({
         loading={actionLoading}
       />
 
-      {displayHmi.errors.length > 0 && (
+      {displayHmi.errors.length > 0 && !hasAlarms && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
