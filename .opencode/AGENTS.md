@@ -42,6 +42,41 @@
 
 ---
 
+## 0.5. Система сохранения контекста (CRITICAL)
+
+Каждая сессия LLM — чистый лист. **Контекст НЕ хранится в памяти** — он хранится в файлах.
+
+### Правила золотые:
+1. **Всё в файлах.** Если информация только в памяти — она потеряна.
+2. **Коммит после каждой сессии.** Всегда.
+3. **CHANGELOG — истина.** Всё, что не в CHANGELOG, не существует.
+
+### В начале сессии (обязательно):
+1. Прочитать `AGENTS.md` (этот файл)
+2. Прочитать `docs/PROJECT_BOOT.md` — цели проекта
+3. Прочитать `docs/CONTEXT_HANDOFF.md` — что было в прошлой сессии
+4. Прочитать `CHANGELOG.md` — что реально сделано
+5. Прочитать `TODO.md` — приоритеты
+6. Запустить `python scripts/verify_context.py` — проверка целостности
+7. Проверить `git log --oneline -5` и `docker compose ps`
+
+### В конце сессии (обязательно):
+1. Обновить `CHANGELOG.md` — секция `## [Unreleased]`
+2. Обновить `TODO.md` — выполненное отметить ✅
+3. Обновить `docs/CONTEXT_HANDOFF.md` — сводка последней сессии
+4. Создать `.opencode/session/history/YYYY-MM-DD_HHMM.md` по шаблону
+5. Запустить `python scripts/verify_context.py`
+6. `git add -A && git commit -m "type(scope): описание"`
+
+### Файлы системы persistence:
+- `.opencode/session/README.md` — описание системы
+- `.opencode/session/TEMPLATE.md` — шаблон новой сессии
+- `.opencode/session/CHECKLIST.md` — чек-лист конца сессии
+- `.opencode/session/history/*.md` — архив всех сессий
+- `scripts/verify_context.py` — скрипт проверки целостности
+
+---
+
 ## 1. Контекст
 
 **FELETI-SMOK** — fullstack-платформа (hardware + software) для управления коптильным производством. Бренд FELETI (Беларусь, Брест) входит на рынок коптильного оборудования с собственной линейкой камер + софтверной платформой, конкурент Ижицы/Varmen.
