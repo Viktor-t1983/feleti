@@ -49,7 +49,7 @@ class KnowledgeArticle(Base):
     category: Mapped[ArticleCategory] = mapped_column(
         SAEnum(ArticleCategory, name="article_category"), nullable=False, index=True
     )
-    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False, index=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     manufacturer_id: Mapped[int | None] = mapped_column(
         ForeignKey("manufacturers.id", ondelete="SET NULL"), nullable=True
     )

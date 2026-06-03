@@ -123,7 +123,7 @@ async def update_product(
 
 @router.delete(
     "/{product_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Удалить продукт",
 )
 async def delete_product(product_id: int, db: DBSession, user: CurrentUser) -> None:

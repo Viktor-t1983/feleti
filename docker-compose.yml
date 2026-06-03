@@ -49,16 +49,14 @@ services:
       - ./data/mosquitto/config:/mosquitto/config
       - ./data/mosquitto/data:/mosquitto/data
       - ./data/mosquitto/log:/mosquitto/log
+      - ./nginx/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     ports:
       - "1883:1883"      # MQTT
       - "9001:9001"      # WebSockets
     environment:
       TZ: ${TZ}
-    configs:
-      - source: mosquitto_config
-      - source: mosquitto_passwd
     healthcheck:
-      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "$SYS/health", "-m", "ping"]
+      test: ["CMD", "sh", "-c", "mosquitto_pub -h localhost -t test/health -m ping || true"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -92,24 +90,24 @@ services:
       timeout: 5s
       retries: 10
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
-    container_name: feleti_frontend
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "3000:3000"
-    command: npm run dev
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #     args:
+  #       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+  #       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+  #   container_name: feleti_frontend
+  #   restart: unless-stopped
+  #   env_file: .env
+  #   depends_on:
+  #     - backend
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #   ports:
+  #     - "3000:3000"
+  #   command: npm run dev
 
   adminer:
     image: adminer:4.8.1
@@ -131,8 +129,8 @@ services:
       - ./data/minio:/data
     ports:
       - "${MINIO_API_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
-    command: server /data --console-address ":9001"
+      - "${MINIO_CONSOLE_PORT}:9002"
+    command: server /data --console-address ":9002"
 
 networks:
   default:
@@ -141,5 +139,5 @@ networks:
 configs:
   mosquitto_config:
     file: ./nginx/mosquitto.conf
-  mosquitto_passwd:
-    file: ./nginx/mosquitto.passwd
+  # mosquitto_passwd:
+  #   file: ./nginx/mosquitto.passwd

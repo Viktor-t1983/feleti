@@ -209,7 +209,7 @@ async def update_batch(
 
 @router.delete(
     "/{batch_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Удалить партию (только в PLANNED/CANCELLED)",
 )
 async def delete_batch(batch_id: int, db: DBSession, user: CurrentUser) -> None:

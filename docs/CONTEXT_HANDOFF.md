@@ -165,6 +165,45 @@
 - **61 Python-файлов** проходят `ast.parse` + `py_compile`.
 - Коммит: `f8fcb5d`.
 
+### Сессия от 2026-06-03 (сессия 6: роли агента + 9 новых SKILL.md)
+- **Что сделано:**
+  - **AGENTS.md обновлён**: добавлены 4 ключевые роли агента:
+    1. Главный архитектор-разработчик (backend + frontend + инфраструктура)
+    2. Главный дизайнер UI/UX (визуальный стиль FELETI, компоненты, UX-паттерны)
+    3. Главный технолог по копчению (рецепты, программы, БЖУ, yield, посол, ГОСТ)
+    4. Мега-визуализатор программ и качества (timeline, графики, KPI, отчёты)
+  - **Созданы 9 новых SKILL.md** (в `.opencode/skills/`):
+    - `db-migrations` — процедуры Alembic (autogenerate, upgrade, rollback, verify)
+    - `frontend-init` — init Next.js 14 + TS + shadcn/ui + PWA + брендирование FELETI
+    - `recipe-calc` — формулы: БЖУ, себестоимость, yield, потери по типу копчения, посол
+    - `pytest-testing` — структура тестов, fixtures, примеры (unit + integration)
+    - `frontend-api-client` — axios + TanStack Query + Zustand auth + offline cache
+    - `program-visualizer` — визуализация программ: timeline, графики температуры, прогресс
+    - `quality-control` — органолептика, лаб. показатели, дефекты, акт КК, pass/fail
+    - `batch-monitoring` — KPI партий, алерты, отклонения от программы, дашборд
+    - `pdf-report` — генерация ТТК, актов КК, журналов через ReportLab
+  - **Всего скиллов: 10 → 19** (10 исходных + 9 новых).
+  - **Обновлены CHANGELOG.md, TODO.md, CONTEXT_HANDOFF.md**.
+
+- **Какие файлы созданы/изменены:**
+  - **Созданы:** `.opencode/skills/{db-migrations,frontend-init,recipe-calc,pytest-testing,frontend-api-client,program-visualizer,quality-control,batch-monitoring,pdf-report}/SKILL.md` (9)
+  - **Изменены:** `.opencode/AGENTS.md` (роли + 19 скиллов), `CHANGELOG.md`, `TODO.md`, `docs/CONTEXT_HANDOFF.md`.
+
+- **Что блокирует:**
+  - 🚫 Нет Docker compose up → не сгенерированы Alembic миграции.
+  - 🚫 Frontend пустой (0 файлов) — нужен Next.js init.
+  - 🚫 Seed: 0 рецептов (RECIPES_BASE.md содержит 80+, но seed.py пуст).
+
+- **Следующие шаги для новой сессии (по приоритету):**
+  1. 🔄 `docker compose up` + Alembic `revision --autogenerate` + `upgrade head`.
+  2. ⏳ Frontend init Next.js 14 + shadcn/ui + PWA (по скиллу `frontend-init`).
+  3. ⏳ Seed: 80+ рецептов + 30+ ингредиентов + 10+ статей БЗ.
+  4. ⏳ Backend: recipe_workflow (draft→pending→approved→archived).
+  5. ⏳ Backend: users CRUD + roles/permissions.
+  6. ⏳ Backend: telemetry с Redis pub/sub для масштабирования.
+
+---
+
 ### Итог сессии 5 (2026-06-02)
 **5 коммитов, +3525 строк backend кода, 53→61 Python-файлов:**
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, Float, Boolean, Enum as SAEnum
+from sqlalchemy import String, Float, Boolean, Enum as SAEnum, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 

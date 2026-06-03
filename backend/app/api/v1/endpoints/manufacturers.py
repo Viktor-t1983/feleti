@@ -133,7 +133,7 @@ async def update_manufacturer(
 
 @router.delete(
     "/{manufacturer_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Удалить производителя",
 )
 async def delete_manufacturer(

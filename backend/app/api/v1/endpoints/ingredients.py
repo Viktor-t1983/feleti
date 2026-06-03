@@ -130,7 +130,7 @@ async def update_ingredient(
 
 @router.delete(
     "/{ingredient_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Удалить ингредиент",
 )
 async def delete_ingredient(

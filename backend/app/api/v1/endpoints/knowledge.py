@@ -313,7 +313,7 @@ async def update_article(
 
 @router.delete(
     "/{article_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Удалить статью",
 )
 async def delete_article(

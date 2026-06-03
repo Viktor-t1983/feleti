@@ -1,0 +1,10 @@
+# Mosquitto ACL для FELETI-SMOK
+# Локальная разработка — разрешено всё
+
+user admin
+topic readwrite #
+
+user feleti_backend
+topic readwrite telemetry/#
+topic readwrite chambers/#
+topic readwrite batches/#

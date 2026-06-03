@@ -181,7 +181,7 @@ async def update_chamber(
 
 @router.delete(
     "/{chamber_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Удалить камеру",
 )
 async def delete_chamber(chamber_id: int, db: DBSession, user: CurrentUser) -> None:

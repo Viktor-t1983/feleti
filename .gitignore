@@ -47,6 +47,7 @@ data/postgres/
 data/redis/
 data/uploads/
 data/minio/
+data/mosquitto/
 
 # Misc
 *.bak

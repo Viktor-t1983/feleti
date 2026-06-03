@@ -21,8 +21,10 @@
 - [x] ✅ `docs/SKILL_SMOKING.md` — база знаний технолога
 - [x] ✅ `docs/CAMERA_DRIVER.md` — драйвер камеры
 - [x] ✅ `.opencode/AGENTS.md` — entry point
-- [x] ✅ 7 файлов `SKILL.md` в `.opencode/skills/*/`
+- [x] ✅ 19 файлов `SKILL.md` в `.opencode/skills/*/` (10 + 9 новых)
 - [x] ✅ `docs/cameras/feleti-smok/SPEC.md` — спецификация камеры FELETI-SMOK
+- [x] ✅ AGENTS.md — обновлен: роли агента + 19 скиллов
+- [x] ✅ 9 новых SKILL.md: db-migrations, frontend-init, recipe-calc, pytest-testing, frontend-api-client, program-visualizer, quality-control, batch-monitoring, pdf-report
 
 ### Backend
 - [x] ✅ Каркас FastAPI (main.py, config.py, security.py, session.py)
@@ -59,12 +61,13 @@
 - [x] ⏳ Драйверы: fessmann.py (OPC UA, stub)
 - [x] ⏳ Драйверы: kerres.py (HTTP, stub)
 - [x] ⏳ Драйверы: mauting.py (Modbus TCP, stub)
-- [x] ⏳ **Сгенерировать первую миграцию** (`alembic revision --autogenerate -m "initial"`)
+- [x] ⏳ **Сгенерировать первую миграцию** (`alembic revision --autogenerate -m "initial"`) — блокер: нужен `docker compose up`
 - [x] ⏳ **Применить миграцию** (`alembic upgrade head` + seed)
 - [x] ⏳ API v1: users CRUD
 - [x] ✅ API v1: batches CRUD + start/pause/resume/cancel/complete (через ChamberGateway)
 - [x] ✅ API v1: telemetry WebSocket (внутрипроцессный fan-out через ChamberGateway; Redis pub/sub — для следующей сессии)
 - [x] ✅ API v1: knowledge CRUD + search
+- [x] ✅ API v1: recipe calc (current version + specific version)
 - [x] ⏳ API v1: chat (in-app) + RAG
 - [x] ⏳ API v1: reports + PDF
 - [x] ⏳ Services: recipe_workflow (draft→pending→approved→archived)
@@ -205,14 +208,12 @@
 
 ## 📅 Ближайшие сессии (приоритет)
 
-1. **Сессия N+1:** доделать оставшиеся документы (если есть), `.opencode/AGENTS.md`, 7 SKILL.md, `docs/cameras/feleti-smok/SPEC.md`.
-2. **Сессия N+2:** backend — модели (chamber, product, ingredient, recipe, brine, batch, knowledge, audit, telemetry), Alembic, первая миграция.
-3. **Сессия N+3:** backend — драйверы (base, simulated, feleti_smok), API v1 (auth, manufacturers, chambers).
-4. **Сессия N+4:** seed-данные (9 производителей, 18+ камер, 50+ рецептов).
-5. **Сессия N+5:** frontend — init Next.js + shadcn/ui + PWA + Login + Dashboard.
-6. **Сессия N+6:** frontend — камеры (live-телеметрия) + рецепты (конструктор + версионирование).
-7. **Сессия N+7:** frontend — партии + база знаний.
-8. **Сессия N+8:** demo + презентация.
+1. **Сессия 6:** Docker compose up → Alembic миграция → seed → backend health check.
+2. **Сессия 7:** frontend — init Next.js 14 + shadcn/ui + PWA + Login + Dashboard + рецепты CRUD.
+3. **Сессия 8:** frontend — программ-визуализатор (timeline, графики, прогресс) + quality-control UI.
+4. **Сессия 9:** seed — 80+ рецептов из RECIPES_BASE.md + 30+ ингредиентов + 10+ статей БЗ.
+5. **Сессия 10:** backend — recipe_workflow + users CRUD + telemetry Redis pub/sub.
+6. **Сессия 11:** backend — drivers stubs (fessmann, kerres, mauting) + реальный стенд.
 
 ---
 
