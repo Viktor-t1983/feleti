@@ -1,117 +1,154 @@
 # FELETI-SMOK
 
-**Платформа управления коптильным производством и база знаний о копчении**
+**Платформа управления коптильным производством + база знаний + HMI камер**
 
-Полноценный fullstack-проект (десктоп + PWA-мобильная) для технологов, операторов коптильных камер, владельцев крафтовых цехов и менеджеров по продажам оборудования.
+Fullstack-платформа (PWA-десктоп + мобильная) для технологов, операторов коптильных камер и владельцев производств. Замена Ижице и Fessmann: современный стек, live-телеметрия, база знаний с конкурентной разведкой, умные драйверы оборудования.
 
-## 🎯 Что внутри
+---
 
-| Модуль | Страницы | Статус |
+## Возможности
+
+| Модуль | Описание | Статус |
 |--------|----------|--------|
-| **Dashboard** | `/` | ✅ KPI, графики, статус камер |
-| **Камеры** | `/chambers`, `/chambers/[id]` | ✅ Каталог + HMI с WebSocket |
-| **Рецепты** | `/recipes`, `/recipes/[slug]` | ✅ Библиотека + детали с фазами |
-| **Партии** | `/batches`, `/batches/new` | ✅ Журнал + создание |
-| **Конкуренты** | `/competitors` | ✅ Анализ 4 конкурентов, 18 моделей Ижицы |
-| **База знаний** | `/knowledge`, `/knowledge/[slug]` | ✅ Статьи, markdown, фильтры |
-| **Настройки** | `/settings` | ✅ Профиль, о системе |
-| **Авторизация** | `/login` | ✅ JWT, роли (admin/tech/operator) |
+| **Dashboard** | KPI камер, графики партий, быстрые действия | ✅ |
+| **Камеры** | Каталог + HMI с WebSocket live-телеметрией | ✅ |
+| **Рецепты** | Конструктор фаз, версионирование, расчёт БЖУ/себестоимости | ✅ |
+| **Партии** | Журнал, создание, управление (start/pause/resume/cancel) | ✅ |
+| **База знаний** | Статьи, поиск, категории, markdown | ✅ |
+| **Конкуренты** | Матрица сравнения, 18+ моделей Ижицы, проблемы | ✅ |
+| **HMI камеры** | 3D-интерфейс, WebSocket, клавиатура, fullscreen | ✅ |
+| **Knowledge Pipeline** | Сбор знаний с сайтов/YouTube/PDF/TG | ✅ |
+| **Настройки** | Профиль, роли, о системе | ✅ |
 
-## 🏗 Стек
+## Архитектура
 
-- **Frontend**: Next.js 14 (App Router) + TypeScript + shadcn/ui + Tailwind + Recharts + Zustand + TanStack Query + React Hook Form + Zod
-- **Backend**: FastAPI (Python 3.11+) + SQLAlchemy 2.0 + Alembic + Pydantic v2
-- **DB**: PostgreSQL 16
-- **Кэш/фон**: Redis 7
-- **Хранилище**: MinIO (S3-совместимое)
-- **MQTT**: Eclipse Mosquitto 2.0
-- **WebSocket**: real-time telemetry с коптильных камер
-- **PWA**: манифест + service worker (мобильная версия в браузере)
-- **DevOps**: Docker Compose, Adminer (UI БД)
+```
+┌─────────────────────────────────────────────────────┐
+│                   Frontend (Next.js 14)              │
+│  Dashboard │ Chambers │ HMI │ Recipes │ Batches      │
+│  Knowledge │ Competitors │ Settings │ PWA            │
+└──────────────────┬──────────────────────────────────┘
+                   │ HTTP REST + WebSocket
+┌──────────────────▼──────────────────────────────────┐
+│                Backend (FastAPI)                      │
+│  Auth │ CRUD │ Telemetry WS │ Pipeline API │ Audit   │
+│  ┌──────────────────────────────────────────────┐   │
+│  │              Services Layer                   │   │
+│  │  ChamberGateway │ RecipeCalc │ KnowledgeSaver │   │
+│  │  WebCrawler │ YouTubeTranscriber │ PdfParser  │   │
+│  └──────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────┐   │
+│  │           Models (SQLAlchemy 2.0)             │   │
+│  │  Chamber │ Batch │ Recipe │ KnowledgeArticle  │   │
+│  │  Competitor │ User │ Audit │ Telemetry        │   │
+│  └──────────────────────────────────────────────┘   │
+└──────────────────┬──────────────────────────────────┘
+                   │ asyncpg │ redis │ celery
+┌──────────────────▼──────────────────────────────────┐
+│    PostgreSQL 16 │ Redis 7 │ MinIO │ Mosquitto MQTT │
+└─────────────────────────────────────────────────────┘
+```
 
-## 🎨 Дизайн
+## Стек
 
-Стиль **FELETI**: чёрно-белая база + красный акцент (`#E30613` как в логотипе FELETI), плавные анимации, современная типографика (Inter / Geist), тёмная и светлая темы.
+**Frontend:**
+Next.js 14 (App Router) · TypeScript · shadcn/ui · Tailwind CSS · Recharts · Zustand · TanStack Query · React Hook Form · Zod · Framer Motion · PWA (next-pwa)
 
-## 🚀 Запуск
+**Backend:**
+FastAPI · SQLAlchemy 2.0 (async) · Alembic · Pydantic v2 · Celery · Redis · httpx · WebSocket
+
+**Хранилище:**
+PostgreSQL 16 · Redis 7 · MinIO (S3)
+
+**Инфраструктура:**
+Docker Compose · Mosquitto MQTT · Adminer
+
+## Быстрый старт
 
 ```bash
-# 1. Клонировать (или скопировать) проект
-cd D:\Коптильные камеры\koptilnya-platform
+# 1. Клонировать
+git clone https://github.com/Viktor-t1983/feleti.git
+cd feleti
 
-# 2. Скопировать .env.example в .env и поправить под себя
+# 2. Настроить окружение
 cp .env.example .env
 
-# 3. Поднять всё одной командой
+# 3. Запустить
 docker compose up -d --build
 
-# 4. Открыть
-# Frontend:  http://localhost:3000
-# Backend:   http://localhost:8000/api/v1/docs
-# Adminer:   http://localhost:8080 (логин: feleti, БД: feleti_smok)
-# MinIO:     http://localhost:9001
+# 4. Накатить миграции + seed
+docker compose exec backend alembic upgrade head
+docker compose exec backend python -m app.scripts.seed
 ```
 
-## 📁 Структура
+**Открыть:**
+- Frontend: http://localhost:3000
+- Backend API docs: http://localhost:8000/api/v1/docs
+- Adminer (БД): http://localhost:8080
+- MinIO Console: http://localhost:9001
+
+## Структура проекта
 
 ```
-koptilnya-platform/
-├── backend/                 # FastAPI
+feleti/
+├── backend/
 │   ├── app/
-│   │   ├── api/v1/          # роутеры (auth, chambers, recipes, batches, telemetry, competitors, knowledge, dashboard)
-│   │   ├── core/            # конфиг, безопасность, deps
-│   │   ├── db/              # сессии, база, миграции
-│   │   ├── models/          # SQLAlchemy 2.0 модели
-│   │   ├── schemas/         # Pydantic v2 схемы
-│   │   ├── services/        # бизнес-логика (gateway, audit)
-│   │   ├── drivers/         # драйверы камер (Modbus, simulated)
-│   │   ├── scripts/         # seed данных
+│   │   ├── api/v1/endpoints/   # REST роутеры (14 endpoint-файлов)
+│   │   ├── core/               # config, security, deps, celery
+│   │   ├── db/                 # session, base, migrations
+│   │   ├── drivers/            # chamber drivers (Modbus, simulated)
+│   │   ├── models/             # SQLAlchemy 2.0 (13 моделей)
+│   │   ├── schemas/            # Pydantic v2
+│   │   ├── services/           # бизнес-логика (9 сервисов)
+│   │   ├── tasks/              # Celery задачи (knowledge pipeline)
+│   │   ├── scripts/            # seed, утилиты
 │   │   └── main.py
-│   ├── alembic/             # миграции Alembic
-│   ├── pyproject.toml
-│   └── Dockerfile
-├── frontend/                # Next.js 14 (App Router)
-│   ├── app/                 # страницы
-│   │   ├── page.tsx         # Dashboard
-│   │   ├── chambers/        # Каталог + HMI
-│   │   ├── recipes/         # Рецепты + детали
-│   │   ├── batches/         # Партии + создание
-│   │   ├── competitors/     # Анализ конкурентов
-│   │   ├── knowledge/       # База знаний
-│   │   ├── settings/        # Профиль
-│   │   └── login/           # Авторизация
-│   ├── components/
-│   │   ├── layout/          # Sidebar, Header, Providers
-│   │   ├── ui/              # shadcn/ui компоненты
-│   │   └── competitors/     # CompetitorCard, CompetitorDetails
-│   ├── lib/
-│   │   └── api/             # Axios client + JWT interceptors
-│   ├── stores/              # Zustand (auth)
-│   └── public/              # PWA манифест, иконки
-├── scripts/                 # Парсеры и утилиты
-│   ├── parse_ijiza_products_v2.py
-│   ├── seed_recipes_batches.py
-│   └── seed_knowledge.py
-├── docs/                    # Документация и исследования
-│   └── research/            # ijiza, конкуренты
+│   ├── alembic/                # миграции (4 шт.)
+│   └── pyproject.toml
+├── frontend/
+│   ├── app/                    # Next.js App Router страницы
+│   ├── components/             # UI + chamber HMI (9 комп.)
+│   ├── hooks/                  # WebSocket + data hooks
+│   ├── lib/                    # API клиент, types, utils
+│   ├── stores/                 # Zustand (auth)
+│   └── public/                 # PWA manifest, icons
+├── docs/                       # Исследования, спецификации
+│   └── research/ijiza/         # HMI анализ, транскрипты (118 видео)
+├── scripts/                    # Парсеры, транскрибация
 ├── docker-compose.yml
+├── .env.example
+├── README.md
 ├── CHANGELOG.md
-└── README.md
+└── TODO.md
 ```
 
-## 📊 Модули по приоритету
+## API Endpoints
 
-1. ✅ Dashboard с KPI и графиками
-2. ✅ Камеры и производители (каталог + HMI)
-3. ✅ Рецепты (конструктор + библиотека + детали)
-4. ✅ Журнал партий (CRUD + фильтры)
-5. ✅ База знаний (статьи с markdown)
-6. ✅ Сравнение с конкурентами (Ижица, Mauting, Fessmann, Kerres)
-7. ✅ Настройки и роли
-8. 🔜 Интеграция Modbus с реальной камерой
-9. 🔜 WebSocket production (Redis pub/sub)
-10. 🔜 Telegram парсинг (нужен API_ID/API_HASH)
+- `GET/POST/PATCH/DELETE /api/v1/*` — CRUD всех сущностей
+- `WS /api/v1/chambers/{id}/telemetry/ws` — live телеметрия
+- `POST /api/v1/pipeline/crawl/*` — запуск сбора знаний
+- `GET /api/v1/pipeline/tasks/{id}` — статус задачи
+- `POST /api/v1/auth/login` — JWT аутентификация
 
-## 📜 Лицензия
+## Конкурентная разведка
 
-© FELETI-SMOK, 2026. Внутренний проект.
+Глубоко исследованы и загружены в БД:
+- **Ижица** (Z115, Z380, UTR-C, UTR-F и др.) — 18+ моделей, 30+ рецептов, 7 проблем, HMI-анализ, 118 YouTube-видео транскрибировано
+- **Mauting** — 6+ моделей туннелей
+- **Fessmann** — 6+ моделей + FES.APP
+- **Kerres** — Jet Smoke, Hybrid Airflow
+
+## Knowledge Pipeline (сбор знаний)
+
+Автоматический сбор информации о продуктах/технологиях копчения:
+
+1. **WebCrawler** — парсинг сайтов конкурентов (httpx + bs4)
+2. **YouTubeTranscriber** — yt-dlp + faster-whisper
+3. **PdfParser** — pdfplumber (каталоги, техпаспорта)
+4. **TelegramParser** — Telethon (нужен API_ID/HASH)
+5. **LlmExtractor** — Ollama/OpenAI → структурированные данные
+6. **KnowledgeSaver** → БД (KnowledgeArticle, CompetitorModel)
+
+---
+
+**© FELETI-SMOK, 2026. Внутренний проект.**

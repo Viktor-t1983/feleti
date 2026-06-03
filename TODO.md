@@ -74,13 +74,14 @@
 - [x] ⏳ Драйверы: fessmann.py (OPC UA, stub)
 - [x] ⏳ Драйверы: kerres.py (HTTP, stub)
 - [x] ⏳ Драйверы: mauting.py (Modbus TCP, stub)
-- [x] ⏳ **Сгенерировать первую миграцию** (`alembic revision --autogenerate -m "initial"`) — блокер: нужен `docker compose up`
-- [x] ⏳ **Применить миграцию** (`alembic upgrade head` + seed)
-- [x] ⏳ API v1: users CRUD
+- [x] ✅ **Сгенерировать первую миграцию** (`alembic revision --autogenerate -m "initial"`)
+- [x] ✅ **Применить миграцию** (`alembic upgrade head` + seed)
+- [x] ✅ API v1: users CRUD
 - [x] ✅ API v1: batches CRUD + start/pause/resume/cancel/complete (через ChamberGateway)
 - [x] ✅ API v1: telemetry WebSocket (внутрипроцессный fan-out через ChamberGateway; Redis pub/sub — для следующей сессии)
 - [x] ✅ API v1: knowledge CRUD + search
 - [x] ✅ API v1: recipe calc (current version + specific version)
+- [x] ✅ API v1: pipeline (crawl/transcribe/parse + статус задач)
 - [x] ⏳ API v1: chat (in-app) + RAG
 - [x] ⏳ API v1: reports + PDF
 - [x] ⏳ Services: recipe_workflow (draft→pending→approved→archived)
@@ -90,13 +91,18 @@
 - [x] ✅ API v1: recipe calc (current version + specific version)
 - [x] ✅ API v1: telemetry REST (status/latest/history/active-batch) + WebSocket (live-стрим)
 - [x] ✅ API v1: knowledge CRUD + search (ILIKE-based, score 3/2/2/1)
+- [x] ✅ API v1: pipeline CRUD (запуск парсинга + Celery задачи)
 - [x] ⏳ Services: telemetry (буферизация, batch insert)
 - [x] ⏳ Services: knowledge (поиск, тегирование)
 - [x] ⏳ Services: chat (RAG/AI)
-- [x] ⏳ Services: pdf_parser
-- [x] ⏳ Services: telegram_parser
-- [x] ⏳ Services: report (PDF/email)
-- [x] ⏳ Workers (Celery): parse_telegram, parse_pdf, send_report
+- [x] ✅ Services: knowledge_pipeline.py (координатор сбора знаний)
+- [x] ✅ Services: web_crawler.py (парсинг сайтов конкурентов)
+- [x] ✅ Services: youtube_transcriber.py (транскрибация YouTube)
+- [x] ✅ Services: pdf_parser.py (PDF-каталоги)
+- [x] ✅ Services: telegram_parser.py (заглушка — ждёт API_ID/HASH)
+- [x] ✅ Services: llm_extractor.py (LLM + rule-based извлечение)
+- [x] ✅ Services: knowledge_saver.py (сохранение в БД)
+- [x] ✅ Workers (Celery): crawl_web, crawl_competitor, transcribe_youtube, parse_pdf
 
 ### Seed-данные
 - [x] ⏳ 9 производителей (Ижица, FELETI, Mauting, Fessmann, Kerres, AGROS, Reich, Vemag, VSD TEC)
@@ -119,12 +125,16 @@
 - [x] ✅ `docs/research/fessmann/README.md` — план по Fessmann (P1)
 - [x] ✅ `docs/research/kerres/README.md` — план по Kerres (P1)
 - [x] ✅ `docs/research/dilers/README.md` — план по дилерам в РФ/СНГ
-- [x] ⏳ Реализовать `backend/app/services/web_parser.py` (HTML-парсинг)
-- [x] ⏳ Реализовать `backend/app/services/pdf_parser.py` (pdfplumber + PyMuPDF)
-- [x] ⏳ Реализовать `backend/app/services/telegram_parser.py` (Telethon)
-- [x] ⏳ Реализовать `backend/app/services/youtube_parser.py` (yt-dlp + Whisper)
-- [x] ⏳ Спарсить ijiza.ru — каталог продукции
-- [x] ⏳ Скачать и распарсить PDF-каталог Ижица 2024
+- [x] ✅ Реализован `backend/app/services/web_crawler.py` (httpx + bs4, sitemap, 5 конкурентов)
+- [x] ✅ Реализован `backend/app/services/pdf_parser.py` (pdfplumber)
+- [x] ✅ Реализован `backend/app/services/telegram_parser.py` (заглушка — ждёт API_ID/HASH)
+- [x] ✅ Реализован `backend/app/services/youtube_transcriber.py` (yt-dlp + faster-whisper)
+- [x] ✅ Реализован `backend/app/services/llm_extractor.py` (LLM + rule-based)
+- [x] ✅ Реализован `backend/app/services/knowledge_saver.py` (сохранение в БД)
+- [x] ✅ Реализовано Celery: crawl_web, crawl_competitor, transcribe_youtube, parse_pdf
+- [x] ✅ API: POST /api/v1/pipeline/ — запуск парсинга + статус
+- [x] ⏳ Спарсить ijiza.ru — каталог продукции (через pipeline/crawl/competitor/ijiza)
+- [x] ⏳ Скачать и распарсить PDF-каталог Ижица 2024 (через pipeline/parse/pdf)
 - [x] ⏳ Получить Telethon API_ID/HASH от пользователя
 - [x] ⏳ Спарсить TG-каналы (@ijiza_chat и др.)
 - [x] ✅ Транскрибировать 118 YouTube-видео об Ижице (faster-whisper tiny, 2.8M символов)
@@ -233,39 +243,36 @@
 
 - 🚫 **Telethon API_ID/HASH** — нужен от пользователя для парсинга TG-каналов.
 - 🚫 **Реальная камера для тестов** — нужен доступ к стенду FELETI-SMOK или камере Ижица в офисе.
-- 🚫 **GitHub-репозиторий** — пользователь сказал "потом", отложено.
+- [x] ✅ **GitHub-репозиторий** — `https://github.com/Viktor-t1983/feleti` (18 коммитов)
 - 🚫 **Точная карта Modbus-регистров Varmen-1** — нужны Wireshark-сниффинг или спецификация от Ижица.
 
 ---
 
 ## 📅 Ближайшие сессии (приоритет) — ОБНОВЛЕНО 2026-06-03
 
-> **Приоритет изменён пользователем:** HMI/панель управления камерой — приоритет #1. Контроль качества после копчения — отдельный софт, не приоритет сейчас.
+> **Приоритет:** Knowledge Pipeline (сбор данных о продуктах) → HMI камеры → GitHub.
+> HMI камеры — почти готов (9 компонентов, WebSocket, keyboard, fullscreen). Тесты и железо — потом.
 
-1. **Сессия 7 (HMI камеры):** Дизайн и прототип HMI панели управления FELETI-SMOK
-   - Анализ HMI Ижицы (есть — docs/research/ijiza/HMI_ANALYSIS.md)
-   - Дизайн главного экрана (текущие параметры + целевые)
-   - Дизайн экрана программ (список, создание, редактирование)
-   - Дизайн экрана шага (параметры: T_chamber, T_product, время, влажность, дым)
-   - Дизайн экрана ручного режима
-   - Дизайн графиков трендов (температура, влажность, дым в реальном времени)
-   - Технология: Kinco HMI + custom UI или web-based HMI на Raspberry Pi
+1. **Сессия 10 (Knowledge Pipeline — запуск):**
+   - Запустить `docker compose exec backend celery -A app.core.celery_app worker -l info` в фоне
+   - Парсинг Ижицы: `POST /api/v1/pipeline/crawl/competitor/ijiza`
+   - Парсинг конкурентов: Mauting, Fessmann, Kerres, AGROS
+   - Транскрибация YouTube-каналов конкурентов
+   - Парсинг PDF-каталогов
+   - Верификация данных в БД (KnowledgeArticle, CompetitorModel)
 
-2. **Сессия 8 (HMI backend):** API для HMI, связь HMI ↔ PLC ↔ драйвер
-   - Modbus TCP сервер (HMI читает регистры PLC)
-   - WebSocket для live-данных
-   - Хранение программ в БД + экспорт/импорт
-   - Синхронизация программ между камерами
+2. **Сессия 11 (RAG endpoint):**
+   - LLM-поиск по базе знаний (AI-копилот технолога)
+   - /api/v1/knowledge/ask — вопрос → ответ на основе статей
 
-3. **Сессия 9 (frontend web):** Web-интерфейс для удаленного мониторинга
-   - Next.js 14 + shadcn/ui + PWA
-   - Dashboard с картой камер
-   - Live-телеметрия с графиками
-   - Управление программами с телефона/планшета
+3. **Сессия 12 (HMI polish):**
+   - Анимация смены фазы (плавный переход)
+   - Тревоги и уведомления
+   - Адаптив под планшет (landscape)
 
-4. **Сессия 10 (seed + рецепты):** 80+ рецептов + 30+ ингредиентов + 10+ статей БЗ
-5. **Сессия 11 (тестирование):** pytest + интеграционные тесты + нагрузочное тестирование
-6. **Сессия 12 (реальный стенд):** FELETI-SMOK driver + Kinco PLC + интеграция
+4. **Сессия 13 (seed + рецепты):** 80+ рецептов + 30+ ингредиентов + 10+ статей БЗ
+5. **Сессия 14 (тестирование):** pytest + интеграционные тесты + нагрузочное тестирование
+6. **Сессия 15 (реальный стенд):** FELETI-SMOK driver + Kinco PLC + интеграция
 
 ---
 

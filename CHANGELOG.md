@@ -7,11 +7,39 @@
 ## [Unreleased]
 
 ### В работе
-- Backend: services: recipe_workflow, telemetry (Redis pub/sub для масштабирования)
-- Backend: workers (Celery): parse_telegram, parse_pdf, send_report
-- Frontend: init Next.js 14 + shadcn/ui + PWA
+- Knowledge Pipeline: запустить первый парсинг конкурентов через API
+- Telegram парсер (ждать API_ID/HASH от пользователя)
+- RAG endpoint (AI-копилот технолога)
+- HMI: анимация смены фазы, тревоги, адаптив под планшет
 - Реальный стенд FELETI-SMOK (R&D)
-- Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
+
+### Added (сессия 9, 2026-06-03 — Knowledge Pipeline + Celery + фронтенд HMI)
+- **Knowledge Pipeline (backend/services/):**
+  - `knowledge_pipeline.py` — единый координатор (SourceType/Crawler/Extractor протоколы)
+  - `web_crawler.py` — парсинг сайтов (httpx + bs4), sitemap, конфиги 5 конкурентов
+  - `youtube_transcriber.py` — yt-dlp + faster-whisper, поиск + транскрибация
+  - `pdf_parser.py` — pdfplumber (текст + таблицы)
+  - `telegram_parser.py` — Telethon (заглушка, ждёт API_ID/HASH)
+  - `llm_extractor.py` — Ollama/OpenAI + rule-based fallback
+  - `knowledge_saver.py` — сохранение ExtractedData → KnowledgeArticle/CompetitorModel
+- **Celery:**
+  - `app/core/celery_app.py` — конфиг Celery (Redis broker/backend)
+  - `app/tasks/knowledge_tasks.py` — 4 задачи: crawl_web, crawl_competitor, transcribe_youtube, parse_pdf
+- **API Pipeline:**
+  - `POST /api/v1/pipeline/crawl/competitor/{name}` — парсинг конкурента
+  - `POST /api/v1/pipeline/crawl/web` — парсинг одного URL
+  - `POST /api/v1/pipeline/transcribe/youtube` — транскрибация
+  - `POST /api/v1/pipeline/parse/pdf` — парсинг PDF
+  - `GET /api/v1/pipeline/tasks/{id}` — статус задачи
+- **Frontend HMI (9 компонентов):**
+  - TemperatureGauge, PhaseProgress, MiniChart, StatusIndicators, ControlButtons, ChamberCamera, HmiDashboard, HmiProgramEditor, HmiBatchHistory
+  - WebSocket с auto-reconnect + exponential backoff + heartbeat 30s
+  - Keyboard shortcuts (Space=Пуск, Esc=Стоп), fullscreen (Ctrl+F)
+  - Chamber list — live статусы (зелёная пульсация, номер партии)
+- **GitHub:** `git remote add origin https://github.com/Viktor-t1983/feleti.git` + push (18 коммитов)
+- **Зависимости:** установлены beautifulsoup4, lxml, parsel, pdfplumber, celery, redis
+- **README.md:** полностью переписан с архитектурой, стеком, быстрым стартом
+- **.env.example:** добавлены LLM_API_URL, LLM_MODEL
 
 ### Added (сессия 8, 2026-06-03 — Dashboard + HMI + Знания + Партии + ijiza парсинг)
 - **Dashboard (`/`)**:
