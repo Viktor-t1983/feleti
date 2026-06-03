@@ -12,7 +12,12 @@
 - HMI: анимация смены фазы, тревоги, адаптив под планшет
 - Реальный стенд FELETI-SMOK (R&D)
 
-### Added (сессия 12, 2026-06-03 — Knowledge Pipeline + Pipeline UI)
+### Added (сессия 13, 2026-06-03 — Streaming AI + SSE)
+- **SSE streaming:** `POST /ai/ask/stream` — потоковый ответ по токенам (text/event-stream)
+- **AIService:** метод `ask_stream()` — async generator, парсинг OpenAI SSE-формата
+- **Frontend:** AI-чат переписан на streaming — токены появляются по мере генерации
+- **Stop generation:** кнопка остановки генерации (AbortController)
+- **Sources:** источники передаются в первом SSE-событии, отображаются под ответом
 - **Pipeline API:** синхронный endpoint `POST /pipeline/crawl/competitor/{name}/sync` (без Celery), `GET /pipeline/results` (статьи + модели по источнику)
 - **Pipeline UI:** страница `/pipeline` с карточками 5 конкурентов, кнопками запуска, статусом, таблицами результатов
 - **Sidebar:** добавлен пункт Pipeline (между Конкуренты и Настройки)

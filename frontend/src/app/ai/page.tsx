@@ -11,15 +11,16 @@ import {
   Settings2,
   BookOpen,
   User,
+  StopCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
-import { askAI } from "@/lib/api/ai";
-import type { AIAskResponse } from "@/types/ai";
+import { askAIStream } from "@/lib/api/ai";
+import type { SSEEvent } from "@/lib/api/ai";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
-  sources?: AIAskResponse["sources"];
+  sources?: { id: number; title: string; slug: string }[];
   model?: string;
 }
 
@@ -39,6 +40,7 @@ export default function AIPage() {
   const [error, setError] = useState<string | null>(null);
   const [aiNotConfigured, setAiNotConfigured] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!isLoadingAuth && !isAuthenticated) {
@@ -51,49 +53,99 @@ export default function AIPage() {
   }, [messages]);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+    async (e?: React.FormEvent) => {
+      e?.preventDefault();
       const q = question.trim();
       if (!q || loading) return;
 
       setQuestion("");
       setError(null);
       setAiNotConfigured(false);
-      setMessages((prev) => [...prev, { role: "user", content: q }]);
+
+      const userMsg: Message = { role: "user", content: q };
+      const assistantMsg: Message = { role: "assistant", content: "" };
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
       setLoading(true);
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       try {
-        const response = await askAI(q);
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: response.answer,
-            sources: response.sources,
-            model: response.model,
+        await askAIStream(
+          q,
+          (event: SSEEvent) => {
+            if (event.type === "token") {
+              setMessages((prev) => {
+                const copy = [...prev];
+                const last = copy[copy.length - 1];
+                if (last && last.role === "assistant") {
+                  last.content += event.content;
+                }
+                return copy;
+              });
+            } else if (event.type === "done") {
+              setMessages((prev) => {
+                const copy = [...prev];
+                const last = copy[copy.length - 1];
+                if (last && last.role === "assistant") {
+                  last.model = event.model;
+                }
+                return copy;
+              });
+            } else if (event.type === "error") {
+              throw new Error(event.message);
+            } else if (event.type === "sources") {
+              setMessages((prev) => {
+                const copy = [...prev];
+                const last = copy[copy.length - 1];
+                if (last && last.role === "assistant" && event.articles) {
+                  last.sources = event.articles;
+                }
+                return copy;
+              });
+            }
           },
-        ]);
+          5,
+          controller.signal,
+        );
       } catch (err: unknown) {
-        const axiosErr = err as { response?: { status?: number } };
-        if (axiosErr?.response?.status === 503) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        const fetchErr = err as { status?: number; message?: string };
+        if (fetchErr?.status === 503 || (fetchErr?.message || "").includes("503")) {
           setAiNotConfigured(true);
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content:
-                "AI-ассистент не настроен. Перейдите в Настройки, чтобы подключить AI-провайдера (Ollama, OpenAI или совместимый).",
-            },
-          ]);
+          setMessages((prev) => {
+            const copy = [...prev];
+            const last = copy[copy.length - 1];
+            if (last && last.role === "assistant") {
+              last.content = "AI-ассистент не настроен. Перейдите в Настройки, чтобы подключить AI-провайдера (Ollama, OpenAI или совместимый).";
+            }
+            return copy;
+          });
         } else {
           setError("Ошибка при получении ответа. Проверьте настройки AI.");
+          // Remove empty assistant message on error
+          setMessages((prev) => {
+            const copy = [...prev];
+            const last = copy[copy.length - 1];
+            if (last && last.role === "assistant" && !last.content) {
+              return copy.slice(0, -1);
+            }
+            return copy;
+          });
         }
       } finally {
         setLoading(false);
+        abortRef.current = null;
       }
     },
-    [question, loading]
+    [question, loading],
   );
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
 
   if (isLoadingAuth || !isAuthenticated) {
     return (
@@ -155,7 +207,10 @@ export default function AIPage() {
               }`}
             >
               <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                {msg.content}
+                {msg.content || (loading && i === messages.length - 1 ? "" : msg.content)}
+                {loading && i === messages.length - 1 && msg.role === "assistant" && (
+                  <span className="inline-flex w-2 h-4 bg-purple-400 ml-0.5 animate-pulse" />
+                )}
               </p>
 
               {/* Sources */}
@@ -193,21 +248,6 @@ export default function AIPage() {
             )}
           </motion.div>
         ))}
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex gap-3">
-            <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
-              <Brain className="h-4 w-4 text-purple-400" />
-            </div>
-            <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Думаю...
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Error */}
         {error && (
@@ -247,17 +287,23 @@ export default function AIPage() {
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-sm text-white outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-purple-500/50 disabled:opacity-50"
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading || !question.trim()}
-          className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-purple-500 disabled:opacity-50"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
+        {loading ? (
+          <button
+            type="button"
+            onClick={handleStop}
+            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-red-500"
+          >
+            <StopCircle className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!question.trim()}
+            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-purple-500 disabled:opacity-50"
+          >
             <Send className="h-4 w-4" />
-          )}
-        </button>
+          </button>
+        )}
       </form>
     </div>
   );

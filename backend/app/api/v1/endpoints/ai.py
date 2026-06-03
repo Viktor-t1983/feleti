@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select, text
 
 from app.core.deps import CurrentUser, DBSession
@@ -141,6 +143,59 @@ async def ai_ask(
         sources=sources,
         query=payload.question,
         model=settings.model_name,
+    )
+
+
+@router.post(
+    "/ask/stream",
+    summary="Задать вопрос AI с потоковым ответом (SSE)",
+)
+async def ai_ask_stream(
+    payload: AIAskRequest,
+    db: DBSession,
+    _user: CurrentUser,
+) -> StreamingResponse:
+    settings = await AIService.get_settings(db)
+    if not settings.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI не настроен.",
+        )
+
+    service = AIService(settings)
+    context = await _search_context(db, payload.question, payload.top_k)
+
+    # Собираем источники для первого события
+    source_articles = []
+    if context:
+        try:
+            fts = text(
+                "to_tsvector('russian', body_md || ' ' || title) @@ plainto_tsquery('russian', :q)"
+            )
+            stmt = select(KnowledgeArticle).where(fts).limit(payload.top_k)
+            rows = (await db.execute(stmt, {"q": payload.question})).scalars().all()
+            source_articles = [{"id": a.id, "title": a.title, "slug": a.slug} for a in rows]
+        except Exception:
+            pass
+
+    async def event_stream():
+        yield "data: " + json.dumps({"type": "sources", "count": len(source_articles), "articles": source_articles}) + "\n\n"
+        try:
+            async for token in service.ask_stream(payload.question, context=context):
+                yield "data: " + json.dumps({"type": "token", "content": token}) + "\n\n"
+            yield "data: " + json.dumps({"type": "done", "model": settings.model_name}) + "\n\n"
+        except Exception as e:
+            logger.exception("AI stream error")
+            yield "data: " + json.dumps({"type": "error", "message": str(e)}) + "\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

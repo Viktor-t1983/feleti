@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -101,6 +101,51 @@ class AIService:
 
         data = await self.chat(messages, stream=stream)
         return data["choices"][0]["message"]["content"]
+
+    async def ask_stream(
+        self,
+        question: str,
+        context: str | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Задать вопрос и получать ответ по токенам (SSE-стриминг)."""
+        system = self.settings.system_prompt or SYSTEM_PROMPT_DEFAULT
+        messages = [{"role": "system", "content": system}]
+
+        if context:
+            messages.append({
+                "role": "user",
+                "content": f"Вот контекст из базы знаний:\n\n{context[:8000]}\n\n---\n\nВопрос: {question}",
+            })
+        else:
+            messages.append({"role": "user", "content": question})
+
+        payload = {
+            **self._payload_base,
+            "messages": messages,
+            "stream": True,
+        }
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300)) as client:
+            async with client.stream(
+                "POST",
+                self._chat_url(),
+                headers=self._headers,
+                json=payload,
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_str)
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
 
     async def analyze(self, text: str) -> dict[str, Any]:
         """Проанализировать текст и извлечь структуру."""
