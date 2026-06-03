@@ -59,7 +59,7 @@ def _excerpt(text: str, query: str, window: int = 200) -> str:
 async def list_articles(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     category: Annotated[ArticleCategoryEnum | None, Query()] = None,
     tag: Annotated[str | None, Query()] = None,
     manufacturer_id: Annotated[int | None, Query()] = None,

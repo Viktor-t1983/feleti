@@ -47,6 +47,9 @@ class BatchRead(APIModel):
     errors: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    chamber_name: str | None = None
+    recipe_name: str | None = None
+    operator_name: str | None = None
 
 
 class BatchDetail(BatchRead):

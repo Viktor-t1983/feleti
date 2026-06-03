@@ -32,7 +32,7 @@ def _to_read(obj: Chamber) -> ChamberRead:
 async def list_chambers(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     manufacturer_id: Annotated[int | None, Query()] = None,
     type: Annotated[str | None, Query(description="ChamberType")] = None,
     supports_electro: Annotated[bool | None, Query()] = None,

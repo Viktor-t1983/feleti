@@ -6,23 +6,26 @@
 
 ## 🎯 Что внутри
 
-- **Камеры и производители** — каталог коптильного оборудования Ижица/Varmen, FELETI, Mauting, Fessmann, Kerres, AGROS, Reich, Vemag, VSD TEC + сравнение, фильтры, избранное.
-- **Технологии** — вики: виды копчения, типы дымогенерации (щепа / фрикция / электростатика / атомизатор / Jet Smoke / жидкий дым), физхимия, посол, дефростация, ГОСТы/ТУ.
-- **Рецепты** — конструктор многоэтапных программ (подсушка → копчение → варка → охлаждение), библиотека готовых, привязка к камере, расчёт на нужную загрузку, ТТК.
-- **Себестоимость** — справочник ингредиентов, расход на партию, выход %, итог за кг, экспорт КП.
-- **Журнал партий** — старт/стоп рецепта, фактические t/влажность/дым, примечания, фото, поиск/фильтры.
-- **Управление камерой** — симулятор графиков t °C / влажности / плотности дыма, кнопки Старт/Пауза/Стоп, выбор рецепта, заготовка под Modbus-интеграцию.
-- **База знаний** — статьи, Telegram-каналы, видео, ГОСТы, FAQ.
-- **Настройки** — пользователи, роли, предприятия, склады, поставщики.
+| Модуль | Страницы | Статус |
+|--------|----------|--------|
+| **Dashboard** | `/` | ✅ KPI, графики, статус камер |
+| **Камеры** | `/chambers`, `/chambers/[id]` | ✅ Каталог + HMI с WebSocket |
+| **Рецепты** | `/recipes`, `/recipes/[slug]` | ✅ Библиотека + детали с фазами |
+| **Партии** | `/batches`, `/batches/new` | ✅ Журнал + создание |
+| **Конкуренты** | `/competitors` | ✅ Анализ 4 конкурентов, 18 моделей Ижицы |
+| **База знаний** | `/knowledge`, `/knowledge/[slug]` | ✅ Статьи, markdown, фильтры |
+| **Настройки** | `/settings` | ✅ Профиль, о системе |
+| **Авторизация** | `/login` | ✅ JWT, роли (admin/tech/operator) |
 
 ## 🏗 Стек
 
-- **Frontend**: Next.js 14 (App Router) + TypeScript + shadcn/ui + Tailwind + Recharts + Zustand + React Hook Form + Zod
+- **Frontend**: Next.js 14 (App Router) + TypeScript + shadcn/ui + Tailwind + Recharts + Zustand + TanStack Query + React Hook Form + Zod
 - **Backend**: FastAPI (Python 3.11+) + SQLAlchemy 2.0 + Alembic + Pydantic v2
 - **DB**: PostgreSQL 16
 - **Кэш/фон**: Redis 7
 - **Хранилище**: MinIO (S3-совместимое)
-- **Web**: WebSocket для стрима графиков с камеры
+- **MQTT**: Eclipse Mosquitto 2.0
+- **WebSocket**: real-time telemetry с коптильных камер
 - **PWA**: манифест + service worker (мобильная версия в браузере)
 - **DevOps**: Docker Compose, Adminer (UI БД)
 
@@ -53,46 +56,61 @@ docker compose up -d --build
 
 ```
 koptilnya-platform/
-├── backend/           # FastAPI
+├── backend/                 # FastAPI
 │   ├── app/
-│   │   ├── api/v1/    # роутеры
-│   │   ├── core/      # конфиг, безопасность
-│   │   ├── db/        # сессии, база
-│   │   ├── models/    # SQLAlchemy-модели
-│   │   ├── schemas/   # Pydantic-схемы
-│   │   ├── services/  # бизнес-логика
-│   │   ├── scripts/   # seed данных
+│   │   ├── api/v1/          # роутеры (auth, chambers, recipes, batches, telemetry, competitors, knowledge, dashboard)
+│   │   ├── core/            # конфиг, безопасность, deps
+│   │   ├── db/              # сессии, база, миграции
+│   │   ├── models/          # SQLAlchemy 2.0 модели
+│   │   ├── schemas/         # Pydantic v2 схемы
+│   │   ├── services/        # бизнес-логика (gateway, audit)
+│   │   ├── drivers/         # драйверы камер (Modbus, simulated)
+│   │   ├── scripts/         # seed данных
 │   │   └── main.py
-│   ├── alembic/       # миграции
+│   ├── alembic/             # миграции Alembic
 │   ├── pyproject.toml
 │   └── Dockerfile
-├── frontend/          # Next.js 14
-│   ├── app/           # страницы (App Router)
-│   ├── components/    # UI-компоненты
-│   ├── lib/           # API-клиент, утилиты
-│   ├── stores/        # Zustand-сторы
-│   ├── public/        # статика, иконки PWA
-│   └── Dockerfile
-├── nginx/             # (опц.) реверс-прокси
-├── data/              # тома БД, MinIO, uploads
-├── docs/              # документация
-├── .env.example
+├── frontend/                # Next.js 14 (App Router)
+│   ├── app/                 # страницы
+│   │   ├── page.tsx         # Dashboard
+│   │   ├── chambers/        # Каталог + HMI
+│   │   ├── recipes/         # Рецепты + детали
+│   │   ├── batches/         # Партии + создание
+│   │   ├── competitors/     # Анализ конкурентов
+│   │   ├── knowledge/       # База знаний
+│   │   ├── settings/        # Профиль
+│   │   └── login/           # Авторизация
+│   ├── components/
+│   │   ├── layout/          # Sidebar, Header, Providers
+│   │   ├── ui/              # shadcn/ui компоненты
+│   │   └── competitors/     # CompetitorCard, CompetitorDetails
+│   ├── lib/
+│   │   └── api/             # Axios client + JWT interceptors
+│   ├── stores/              # Zustand (auth)
+│   └── public/              # PWA манифест, иконки
+├── scripts/                 # Парсеры и утилиты
+│   ├── parse_ijiza_products_v2.py
+│   ├── seed_recipes_batches.py
+│   └── seed_knowledge.py
+├── docs/                    # Документация и исследования
+│   └── research/            # ijiza, конкуренты
 ├── docker-compose.yml
+├── CHANGELOG.md
 └── README.md
 ```
 
 ## 📊 Модули по приоритету
 
-1. ✅ Камеры и производители
-2. ✅ Технологии (вики)
-3. ✅ Рецепты (конструктор + библиотека)
-4. ✅ Управление камерой (симулятор)
-5. ✅ Себестоимость и ТТК
-6. ✅ Журнал партий
-7. ✅ База знаний
-8. ✅ Сравнение с конкурентами
-9. ✅ Настройки и роли
-10. 🔜 Интеграция Modbus с реальной камерой
+1. ✅ Dashboard с KPI и графиками
+2. ✅ Камеры и производители (каталог + HMI)
+3. ✅ Рецепты (конструктор + библиотека + детали)
+4. ✅ Журнал партий (CRUD + фильтры)
+5. ✅ База знаний (статьи с markdown)
+6. ✅ Сравнение с конкурентами (Ижица, Mauting, Fessmann, Kerres)
+7. ✅ Настройки и роли
+8. 🔜 Интеграция Modbus с реальной камерой
+9. 🔜 WebSocket production (Redis pub/sub)
+10. 🔜 Telegram парсинг (нужен API_ID/API_HASH)
 
 ## 📜 Лицензия
 

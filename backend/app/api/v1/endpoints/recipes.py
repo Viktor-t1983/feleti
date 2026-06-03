@@ -32,7 +32,7 @@ router = APIRouter()
 async def list_recipes(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     product_id: Annotated[int | None, Query()] = None,
     status_: Annotated[str | None, Query(alias="status")] = None,
 ) -> Page[RecipeRead]:

@@ -22,7 +22,7 @@ router = APIRouter()
 async def list_manufacturers(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     is_our_brand: Annotated[bool | None, Query()] = None,
     is_competitor: Annotated[bool | None, Query()] = None,
 ) -> Page[ManufacturerRead]:

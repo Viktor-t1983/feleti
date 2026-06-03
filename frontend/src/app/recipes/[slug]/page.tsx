@@ -1,0 +1,346 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import {
+  BookOpen,
+  ArrowLeft,
+  Thermometer,
+  Clock,
+  Droplets,
+  CheckCircle2,
+  Tag,
+  FileText,
+} from "lucide-react";
+import { apiClient } from "@/lib/api/client";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+
+interface RecipePhase {
+  phase: string;
+  temp: number;
+  time_min: number;
+  humidity?: number;
+}
+
+interface RecipeVersion {
+  id: number;
+  version_number: number;
+  program: RecipePhase[];
+  yield_percent: number | null;
+  losses_percent: number | null;
+  notes: string | null;
+  gost: string | null;
+  verified: boolean;
+}
+
+interface Recipe {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  status: string;
+  tags: string[];
+  current_version: RecipeVersion | null;
+}
+
+const PHASE_LABELS: Record<string, string> = {
+  drying: "Сушка",
+  smoking: "Копчение",
+  cooking: "Варка",
+  shower: "Душирование",
+  salting: "Посол",
+  cooling: "Охлаждение",
+  freezing: "Заморозка",
+  prerun: "Прогрев",
+};
+
+const PHASE_COLORS: Record<string, string> = {
+  drying: "#f59e0b",
+  smoking: "#c9a96e",
+  cooking: "#ef4444",
+  shower: "#3b82f6",
+  salting: "#8b5cf6",
+  cooling: "#06b6d4",
+  freezing: "#6366f1",
+  prerun: "#10b981",
+};
+
+async function fetchRecipe(slug: string): Promise<Recipe> {
+  // API doesn't have slug endpoint, fetch all and filter
+  const { data } = await apiClient.get(`/recipes?size=50`);
+  const recipe = data.items.find((r: Recipe) => r.slug === slug);
+  if (!recipe) throw new Error("Рецепт не найден");
+  return recipe;
+}
+
+export default function RecipeDetailPage() {
+  const params = useParams();
+  const slug = params.slug as string;
+
+  const { data: recipe, isLoading } = useQuery({
+    queryKey: ["recipe", slug],
+    queryFn: () => fetchRecipe(slug),
+  });
+
+  if (isLoading) {
+    return <RecipeDetailSkeleton />;
+  }
+
+  if (!recipe) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Рецепт не найден</p>
+        <Link
+          href="/recipes"
+          className="mt-4 text-sm text-feleti-gold hover:underline"
+        >
+          Вернуться к списку
+        </Link>
+      </div>
+    );
+  }
+
+  const version = recipe.current_version;
+  const phases = version?.program || [];
+  const totalTime = phases.reduce((sum, p) => sum + (p.time_min || 0), 0);
+
+  const chartData = phases.map((p, i) => ({
+    name: `${PHASE_LABELS[p.phase] || p.phase} (${i + 1})`,
+    temp: p.temp,
+    time: p.time_min,
+    color: PHASE_COLORS[p.phase] || "#94a3b8",
+  }));
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <Link
+          href="/recipes"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-white transition-colors mb-4"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Назад к рецептам
+        </Link>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">{recipe.name}</h1>
+            {recipe.description && (
+              <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
+                {recipe.description}
+              </p>
+            )}
+          </div>
+          {version?.verified && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-400">
+              <CheckCircle2 className="h-4 w-4" />
+              Утверждён
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Tags & GOST */}
+      <div className="flex flex-wrap items-center gap-3">
+        {recipe.tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-sm text-muted-foreground"
+          >
+            <Tag className="h-3 w-3" />
+            {tag}
+          </span>
+        ))}
+        {version?.gost && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-feleti-gold/10 px-3 py-1 text-sm text-feleti-gold">
+            <FileText className="h-3 w-3" />
+            {version.gost}
+          </span>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatCard label="Общее время" value={`${totalTime} мин`} icon={Clock} />
+        <StatCard
+          label="Фаз"
+          value={`${phases.length}`}
+          icon={BookOpen}
+        />
+        {version?.yield_percent && (
+          <StatCard
+            label="Выход"
+            value={`${version.yield_percent}%`}
+            icon={Droplets}
+          />
+        )}
+        {version?.losses_percent && (
+          <StatCard
+            label="Потери"
+            value={`${version.losses_percent}%`}
+            icon={Thermometer}
+          />
+        )}
+      </div>
+
+      {/* Temperature chart */}
+      {chartData.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-white/5 bg-white/[0.02] p-5"
+        >
+          <h3 className="text-sm font-medium text-white mb-4">
+            Температурный профиль
+          </h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis
+                dataKey="name"
+                tick={{ fill: "#888", fontSize: 11 }}
+                axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+              />
+              <YAxis
+                tick={{ fill: "#888", fontSize: 12 }}
+                axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                label={{ value: "°C", angle: -90, position: "insideLeft", fill: "#888" }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#1a1a1a",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px",
+                  color: "#fff",
+                }}
+              />
+              <Bar dataKey="temp" radius={[4, 4, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell key={index} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
+      )}
+
+      {/* Phases table */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <h3 className="text-sm font-medium text-white mb-4">
+          Программа копчения
+        </h3>
+        <div className="overflow-hidden rounded-xl border border-white/5">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/5">
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">№</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Фаза</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Температура</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Время</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Влажность</th>
+              </tr>
+            </thead>
+            <tbody>
+              {phases.map((phase, i) => (
+                <tr
+                  key={i}
+                  className="border-b border-white/5 hover:bg-white/[0.02]"
+                >
+                  <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{
+                          backgroundColor:
+                            PHASE_COLORS[phase.phase] || "#94a3b8",
+                        }}
+                      />
+                      <span className="text-white">
+                        {PHASE_LABELS[phase.phase] || phase.phase}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-white">
+                    {phase.temp}°C
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {phase.time_min} мин
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {phase.humidity !== undefined ? `${phase.humidity}%` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
+
+      {/* Notes */}
+      {version?.notes && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="rounded-xl border border-white/5 bg-white/[0.02] p-4"
+        >
+          <h3 className="text-sm font-medium text-white mb-2">Примечания</h3>
+          <p className="text-sm text-muted-foreground">{version.notes}</p>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ElementType;
+}) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className="h-4 w-4 text-feleti-gold" />
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      <div className="text-lg font-bold text-white">{value}</div>
+    </div>
+  );
+}
+
+function RecipeDetailSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-4">
+        <div className="h-4 w-32 animate-pulse rounded bg-white/5" />
+        <div className="h-8 w-64 animate-pulse rounded-lg bg-white/5" />
+      </div>
+      <div className="grid grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-20 animate-pulse rounded-xl bg-white/5" />
+        ))}
+      </div>
+      <div className="h-72 animate-pulse rounded-2xl bg-white/5" />
+    </div>
+  );
+}

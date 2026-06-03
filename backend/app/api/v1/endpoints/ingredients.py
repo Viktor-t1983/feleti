@@ -22,7 +22,7 @@ router = APIRouter()
 async def list_ingredients(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     type: Annotated[str | None, Query(description="IngredientType")] = None,
     wood_species: Annotated[str | None, Query(description="Для type=wood")] = None,
 ) -> Page[IngredientRead]:

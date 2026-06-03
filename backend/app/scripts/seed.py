@@ -16,6 +16,7 @@ from app.core.security import hash_password
 from app.db.base import Base  # noqa: F401 — регистрация моделей в metadata
 from app.db.session import AsyncSessionLocal, engine
 from app.models.chamber import Chamber, ChamberType
+from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem
 from app.models.ingredient import Ingredient, IngredientType
 from app.models.manufacturer import Manufacturer
 from app.models.product import Product, ProductCategory
@@ -194,6 +195,145 @@ async def seed_products(session) -> list[Product]:
     return result
 
 
+async def seed_competitors(session) -> list[Competitor]:
+    data = [
+        {
+            "slug": "ijiza",
+            "name": "Ижица / Varmen",
+            "country": "Россия",
+            "founded_year": 1992,
+            "segment": "Horeca / Profi / Industrial",
+            "is_main_competitor": True,
+            "client_count": 4000,
+            "recipe_count": 200,
+            "warranty_years": 1,
+            "has_cloud": True,
+            "has_mobile_app": True,
+            "has_remote_monitoring": True,
+            "has_video_camera": False,
+            "description": "Российский производитель коптильного оборудования с 1992 года. Линейка от 20 до 1200 кг. Собственное производство в Санкт-Петербурге. 4000+ клиентов в 50+ странах. Облако, мобильное приложение и удаленный мониторинг — опция для малых моделей, стандарт для промышленных UTM/UTR.",
+            "strengths": ["25+ лет на рынке", "200+ готовых рецептов", "Собственное производство", "Широкая линейка (20–1200 кг)", "Фрикционный дымогенератор", "Электростатическое копчение", "Облако / мобильное / удаленный мониторинг"],
+            "weaknesses": ["Плохие инструкции", "Проблемы с электростатикой", "Заводской дефект вентилятора", "Нагар и перегрев", "Плесень при неправильной эксплуатации", "Капли конденсата", "Проблемы с цветом продукта", "Шибер/зольник"],
+            "models": [
+                {"name": "Varmen Mini", "max_load_kg": 20, "power_kw": 3.5, "voltage_v": 220, "weight_kg": 70, "dimensions": "0.65 x 0.65 x 1.1 м", "modes": ["горячее копчение", "проварка паром", "запекание", "сушка", "обжарка"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-Z115.2 (полуавтомат)", "max_load_kg": 100, "power_kw": 10, "voltage_v": 380, "weight_kg": 300, "dimensions": "1.51 x 1.1 x 1.9 м", "modes": ["горячее копчение", "проварка паром", "сушка", "запекание", "обжарка"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-Z115.2-A (автомат)", "max_load_kg": 250, "power_kw": 14, "voltage_v": 380, "weight_kg": 650, "dimensions": "1.6 x 1.3 x 2.25 м", "modes": ["горячее копчение", "проварка паром", "запекание", "холодное копчение"], "automation_level": "автомат"},
+                {"name": "Ижица-Z115.2АС", "max_load_kg": 250, "power_kw": 12, "voltage_v": 380, "weight_kg": 650, "dimensions": "1.75 x 1.55 x 2.25 м", "modes": ["прогрев", "сушка", "сушка по влажности", "копчение", "варка", "обжарка"], "automation_level": "автомат"},
+                {"name": "Ижица-Z200", "max_load_kg": 500, "power_kw": 30, "voltage_v": 380, "weight_kg": 600, "dimensions": "2.0 x 1.4 x 2.7 м", "modes": ["горячее копчение", "проварка паром", "запекание"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-UNI-100", "max_load_kg": 100, "power_kw": 11, "voltage_v": 380, "weight_kg": 340, "dimensions": "1.51 x 1.1 x 1.9 м", "modes": ["горячее копчение", "холодное копчение", "запекание", "проварка паром", "сушка", "обжарка"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-miniGK", "max_load_kg": 20, "power_kw": 3.5, "voltage_v": 220, "weight_kg": 70, "dimensions": "0.63 x 0.65 x 1.1 м", "modes": ["сушка", "копчение", "жарка", "варка паром", "проветривание"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-1200М4", "max_load_kg": 1200, "power_kw": 3.2, "voltage_v": 380, "weight_kg": 250, "dimensions": "1.3 x 0.95 x 2.0 м", "modes": ["холодное копчение"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-1200М4-А (электростатика)", "max_load_kg": 1200, "power_kw": 5, "voltage_v": 380, "weight_kg": 400, "dimensions": "1.4 x 1.2 x 2.25 м", "modes": ["холодное копчение"], "automation_level": "автомат"},
+                {"name": "VARMEN UTM.250", "max_load_kg": 250, "power_kw": 31, "voltage_v": 380, "dimensions": "2.04 x 1.5 x 3.1 м", "modes": ["сушка", "интервальная сушка", "сушка по влажности", "прогрев", "горячее копчение", "варка", "мойка автоматическая", "эвакуация"], "automation_level": "полностью автоматизированная"},
+                {"name": "VARMEN UTM.500", "max_load_kg": 500, "power_kw": 62, "voltage_v": 380, "dimensions": "2.04 x 2.5 x 3.5 м", "modes": ["сушка", "интервальная сушка", "сушка по влажности", "прогрев", "горячее копчение", "варка", "мойка автоматическая", "эвакуация"], "automation_level": "полностью автоматизированная"},
+                {"name": "VARMEN UTR.250", "max_load_kg": 250, "power_kw": 31, "voltage_v": 380, "dimensions": "2.04 x 1.5 x 3.1 м", "modes": ["сушка", "интервальная сушка", "сушка по влажности", "прогрев", "горячее копчение", "холодное копчение", "варка", "мойка автоматическая", "эвакуация"], "automation_level": "полностью автоматизированная"},
+                {"name": "VARMEN UTR.500", "max_load_kg": 500, "power_kw": 62, "voltage_v": 380, "dimensions": "2.04 x 2.5 x 3.5 м", "modes": ["сушка", "интервальная сушка", "сушка по влажности", "прогрев", "горячее копчение", "холодное копчение", "варка", "мойка автоматическая", "эвакуация"], "automation_level": "полностью автоматизированная"},
+                {"name": "Varmen Atomic 250", "max_load_kg": 250, "power_kw": 30, "voltage_v": 380, "dimensions": "1.97 x 1.5 x 3.05 м", "modes": ["сушка", "интервальная сушка", "копчение", "варка"], "automation_level": "полностью автоматизированная"},
+                {"name": "BBQ Smoker Red Dolly", "max_load_kg": 100, "power_kw": 9, "voltage_v": 380, "dimensions": "1.4 x 1.0 x 1.85 м", "modes": ["горячее копчение", "проварка паром"], "automation_level": "сенсорная панель с удаленным доступом"},
+                {"name": "Ижица-СВ-Н", "max_load_kg": 80, "power_kw": 0.7, "voltage_v": 220, "weight_kg": 80, "dimensions": "0.9 x 0.9 x 1.9 м", "modes": ["сушка", "вяление"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-СВ-Z", "max_load_kg": 100, "power_kw": 1.2, "voltage_v": 220, "dimensions": "0.95 x 1.2 x 1.6 м", "modes": ["сушка", "вяление"], "automation_level": "полуавтомат"},
+                {"name": "Ижица-СВ2500", "max_load_kg": 250, "power_kw": 1.5, "voltage_v": 220, "dimensions": "1.48 x 1.6 x 2.25 м", "modes": ["сушка", "вяление"], "automation_level": "полуавтомат"},
+            ],
+            "problems": [
+                {"title": "Вентилятор установлен вверх ногами", "description": "В сушильно-вялочной камере вентилятор стоит с лопастями для подачи воздуха вверх, а крутится вниз. Обдув идет по стенкам, в центре противоток.", "severity": "medium", "frequency": "Часто", "source": "me23.ru (фев 2018)"},
+                {"title": "Электростатика не работает", "description": "Увеличилось время копчения. Статика на ноль ушла через 2 года. Искра на генераторе при полной загрузке — пара миллиметров.", "severity": "high", "frequency": "Часто", "source": "ijiza.userecho.ru (2024)"},
+                {"title": "Плохие инструкции", "description": "Инструкция у производителя никакая, приходится звонить и спрашивать на завод. Не понятно как чистить коптильню.", "severity": "medium", "frequency": "Всегда", "source": "me23.ru (2018–2019)"},
+                {"title": "Много дыма, толку мало", "description": "У двух одинаковых печей Ижица-М4 одна работает без претензий, во второй много дыма, толку мало. Напряжение везде одинаковое.", "severity": "high", "frequency": "Иногда", "source": "me23.ru (янв 2023)"},
+                {"title": "Нагар и перегрев", "description": "При длительной работе нагревательных элементов образуется нагар, снижающий эффективность. Перегрев приводит к подгоранию продукта.", "severity": "high", "frequency": "Часто", "source": "YouTube-анализ 118 видео (2026-06-03)"},
+                {"title": "Плесень на продукции", "description": "При холодном копчении и нарушении режима влажности на поверхности продукта появляется плесень. Проблема особенно актуальна для начинающих.", "severity": "high", "frequency": "Иногда", "source": "YouTube-анализ 118 видео (2026-06-03)"},
+                {"title": "Капли конденсата", "description": "Во время охлаждения и при резком перепаде температур внутри камеры образуются капли конденсата, падающие на продукт и ухудшающие его внешний вид.", "severity": "medium", "frequency": "Часто", "source": "YouTube-анализ 118 видео (2026-06-03)"},
+                {"title": "Неправильный цвет продукта", "description": "Продукт получается желтым или серым вместо золотисто-коричневого. Причины: неправильный режим, некачественная щепа, проблемы с дымогенератором.", "severity": "medium", "frequency": "Часто", "source": "YouTube-анализ 118 видео (2026-06-03)"},
+                {"title": "Проблемы с шибером и зольником", "description": "Шибер заклинивает, зольник забивается золой. Требуется частая чистка и обслуживание. Нет инструкции по правильной чистке.", "severity": "medium", "frequency": "Всегда", "source": "YouTube-анализ 118 видео (2026-06-03)"},
+            ],
+        },
+        {
+            "slug": "mauting",
+            "name": "Mauting",
+            "country": "Чехия",
+            "segment": "Industrial",
+            "is_main_competitor": False,
+            "recipe_count": 1000,
+            "warranty_years": 2,
+            "has_cloud": False,
+            "has_mobile_app": False,
+            "has_remote_monitoring": False,
+            "has_video_camera": False,
+            "description": "Чешский бренд, 70+ лет на рынке. Премиум-сегмент для крупных заводов. Туннельные камеры 1–8 вагонеток.",
+            "strengths": ["70+ лет на рынке", "Премиум качество", "Туннели до 8 вагонеток"],
+            "weaknesses": ["Высокая цена (от 5M ₽)", "Нет mobile/cloud", "Сложности с сервисом в РФ"],
+            "models": [
+                {"name": "Туннель 1 вагонетка", "max_load_kg": 500},
+                {"name": "Туннель 4 вагонетки", "max_load_kg": 2000},
+                {"name": "Туннель 8 вагонеток", "max_load_kg": 4000},
+            ],
+            "problems": [],
+        },
+        {
+            "slug": "fessmann",
+            "name": "Fessmann",
+            "country": "Германия",
+            "segment": "Industrial",
+            "is_main_competitor": False,
+            "recipe_count": 1000,
+            "warranty_years": 3,
+            "has_cloud": True,
+            "has_mobile_app": True,
+            "has_remote_monitoring": True,
+            "has_video_camera": False,
+            "description": "Немецкий бренд, 100+ лет на рынке. FES.APP — мобильное приложение, OPC UA интеграция. Флагман промышленного копчения.",
+            "strengths": ["FES.APP — лучшее mobile в отрасли", "OPC UA", "100+ лет опыта", "Полная MES интеграция"],
+            "weaknesses": ["Цены от 8M ₽", "Нет производства в РФ", "Таможенные риски"],
+            "models": [
+                {"name": "T1900", "max_load_kg": 1000},
+                {"name": "T2500", "max_load_kg": 2000},
+                {"name": "Turbomat", "max_load_kg": 3000},
+            ],
+            "problems": [],
+        },
+        {
+            "slug": "kerres",
+            "name": "Kerres",
+            "country": "Германия",
+            "segment": "Profi / Industrial",
+            "is_main_competitor": False,
+            "recipe_count": 500,
+            "warranty_years": 2,
+            "has_cloud": True,
+            "has_mobile_app": True,
+            "has_remote_monitoring": True,
+            "has_video_camera": False,
+            "description": "Немецкий производитель. Jet Smoke, Hybrid Airflow. Премиум сегмент.",
+            "strengths": ["Jet Smoke технология", "Hybrid Airflow", "Облачная синхронизация"],
+            "weaknesses": ["Высокие цены", "Нет в РФ"],
+            "models": [
+                {"name": "Jet Smoke 500", "max_load_kg": 500},
+                {"name": "Hybrid Airflow 1000", "max_load_kg": 1000},
+            ],
+            "problems": [],
+        },
+    ]
+
+    result: list[Competitor] = []
+    for item in data:
+        existing = await session.scalar(
+            select(Competitor).where(Competitor.slug == item["slug"])
+        )
+        if existing:
+            result.append(existing)
+            continue
+        models = item.pop("models", [])
+        problems = item.pop("problems", [])
+        obj = Competitor(**item)
+        for m in models:
+            obj.models.append(CompetitorModel(**m))
+        for p in problems:
+            obj.problems.append(CompetitorProblem(**p))
+        session.add(obj)
+        result.append(obj)
+    await session.flush()
+    return result
+
+
 async def seed_demo_users(session) -> list[User]:
     data = [
         {"email": "admin@feleti.by", "username": "admin", "full_name": "Администратор",
@@ -237,6 +377,9 @@ async def run_seed() -> None:
 
             users = await seed_demo_users(session)
             logger.info("Users: %s", len(users))
+
+            competitors = await seed_competitors(session)
+            logger.info("Competitors: %s", len(competitors))
 
             await session.commit()
             logger.info("=== seed committed ===")

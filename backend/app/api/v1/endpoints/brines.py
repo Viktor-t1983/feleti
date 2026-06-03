@@ -22,7 +22,7 @@ router = APIRouter()
 async def list_brines(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     method: Annotated[str | None, Query()] = None,
 ) -> Page[BrineRead]:
     stmt = select(Brine)

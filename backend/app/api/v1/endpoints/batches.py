@@ -51,7 +51,7 @@ def _utcnow() -> datetime:
 async def list_batches(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     chamber_id: Annotated[int | None, Query()] = None,
     recipe_id: Annotated[int | None, Query()] = None,
     status_: Annotated[BatchStatus | None, Query(alias="status")] = None,
@@ -74,14 +74,29 @@ async def list_batches(
 
     total = await db.scalar(count_stmt) or 0
     stmt = (
-        stmt.order_by(Batch.id.desc())
+        stmt.options(
+            selectinload(Batch.chamber),
+            selectinload(Batch.recipe_version).selectinload(RecipeVersion.recipe),
+            selectinload(Batch.operator),
+        )
+        .order_by(Batch.id.desc())
         .offset((params.page - 1) * params.size)
         .limit(params.size)
     )
     rows = (await db.scalars(stmt)).all()
     pages = (total + params.size - 1) // params.size if total else 0
+    items: list[BatchRead] = []
+    for r in rows:
+        data = {
+            **r.__dict__,
+            "chamber_name": r.chamber.model if r.chamber else None,
+            "recipe_name": r.recipe_version.recipe.name if r.recipe_version and r.recipe_version.recipe else None,
+            "operator_name": r.operator.full_name or r.operator.username if r.operator else None,
+        }
+        items.append(BatchRead.model_validate(data))
+
     return Page[BatchRead](
-        items=[BatchRead.model_validate(r) for r in rows],
+        items=items,
         total=total,
         page=params.page,
         size=params.size,
@@ -101,7 +116,7 @@ async def get_batch(
         select(Batch)
         .options(
             selectinload(Batch.phases),
-            selectinload(Batch.recipe_version),
+            selectinload(Batch.recipe_version).selectinload(RecipeVersion.recipe),
             selectinload(Batch.chamber),
             selectinload(Batch.operator),
         )
@@ -111,7 +126,13 @@ async def get_batch(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Партия не найдена"
         )
-    return BatchDetail.model_validate(obj)
+    data = {
+        **obj.__dict__,
+        "chamber_name": obj.chamber.model if obj.chamber else None,
+        "recipe_name": obj.recipe_version.recipe.name if obj.recipe_version and obj.recipe_version.recipe else None,
+        "operator_name": obj.operator.full_name or obj.operator.username if obj.operator else None,
+    }
+    return BatchDetail.model_validate(data)
 
 
 @router.post(

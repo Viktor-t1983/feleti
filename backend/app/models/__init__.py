@@ -16,6 +16,7 @@ from app.models.knowledge import KnowledgeArticle, KnowledgeAttachment  # noqa: 
 from app.models.manufacturer import Manufacturer  # noqa: F401, E402
 from app.models.product import Product  # noqa: F401, E402
 from app.models.recipe import Recipe, RecipeApproval, RecipeVersion  # noqa: F401, E402
+from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem  # noqa: F401, E402
 from app.models.telemetry import TelemetryReading  # noqa: F401, E402
 from app.models.user import User  # noqa: F401, E402
 

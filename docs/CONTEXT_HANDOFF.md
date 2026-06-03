@@ -67,6 +67,64 @@
 
 ## 4. Сводка последней сессии
 
+### Сессия от 2026-06-03 (сессия 7: frontend архитектура + backend конкуренты + API интеграция)
+- **Что сделано:**
+  - **Frontend архитектура:**
+    - API клиент (`axios` + JWT interceptors + refresh token)
+    - TanStack Query (React Query) клиент
+    - Zustand auth store (login/logout/restore, persist middleware)
+    - Layout: Sidebar (навигация) + Header (пользователь, дата) + MainLayout
+    - TypeScript strict mode, 0 ошибок
+  - **Frontend страницы (все с API backend):**
+    - `/login` — RHF + Zod, демо-логины (admin/tech/operator)
+    - `/chambers` — список камер из БД (бейджи: электростатика, охлаждение)
+    - `/recipes` — список рецептов из БД (статус: утверждён/черновик)
+    - `/settings` — профиль пользователя + информация о системе
+    - `/competitors` — теперь данные из API, hardcoded убран
+  - **Backend: Competitor модели + API + seed:**
+    - SQLAlchemy модели: Competitor, CompetitorModel, CompetitorProblem
+    - Pydantic v2 схемы: Read/Create/Update
+    - API endpoints: `/competitors` CRUD + фильтры (is_main, segment)
+    - Seed: 4 конкурента (Ижица, Mauting, Fessmann, Kerres) + 13 моделей + 4 проблемы
+    - Alembic миграция `add competitors` применена
+  - **Исправления:**
+    - CompetitorCard.tsx: `boolean | null` для hasCloud/hasMobileApp/hasRemoteMonitoring/hasVideoCamera
+    - Competitor strengths/weaknesses: JSON колонки в PostgreSQL
+    - API пагинация: отдельные `page`/`size` Query параметры
+  - **Парсинг:** YouTube транскрибация 83/118 видео (73%)
+
+- **Какие файлы созданы/изменены:**
+  - **Создано:**
+    - `frontend/src/lib/api/{client.ts,query-client.ts,auth.ts}`
+    - `frontend/src/lib/providers.tsx`
+    - `frontend/src/stores/auth.ts`
+    - `frontend/src/components/layout/{Sidebar.tsx,Header.tsx,MainLayout.tsx}`
+    - `frontend/src/app/{login,chambers,recipes,settings}/page.tsx`
+    - `backend/app/models/competitor.py`
+    - `backend/app/schemas/competitor.py`
+    - `backend/app/api/v1/endpoints/competitors.py`
+  - **Изменено:**
+    - `frontend/src/app/layout.tsx` (Providers + MainLayout)
+    - `frontend/src/app/page.tsx` (убран gradient-dark)
+    - `frontend/src/app/competitors/page.tsx` (API вместо hardcoded)
+    - `backend/app/models/__init__.py`, `backend/app/db/base.py`
+    - `backend/app/api/v1/__init__.py`
+    - `backend/app/scripts/seed.py`
+    - `TODO.md`, `CHANGELOG.md`
+
+- **Что блокирует:**
+  - 🚫 Dev сервер Next.js падает по таймауту в background task (работает, но task не поддерживает бесконечные процессы). Нужен долгоживущий процесс.
+  - 🚫 Нет Telethon API_ID/HASH → парсинг TG заблокирован.
+  - 🚫 Парсинг ijiza.ru — SSL/cert issue, нужен retry.
+
+- **Следующие шаги (по приоритету):**
+  1. Backend: services/recipe_workflow (draft→pending→approved→archived)
+  2. Backend: pytest тесты
+  3. Frontend: Dashboard (KPI, активные партии)
+  4. Frontend: страница партий (/batches)
+  5. Парсинг ijiza.ru (retry с headers/session)
+  6. HMI прототип (экраны камеры)
+
 ### Сессия от 2026-06-02 (сессия 4: backend — модели + Alembic + API v1 каркас + seed)
 - **Что сделано:**
   - **Backend: 11 моделей SQLAlchemy 2.0 созданы и прошли ast-parse**:

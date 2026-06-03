@@ -13,6 +13,67 @@
 - Реальный стенд FELETI-SMOK (R&D)
 - Парсинг Ижицы: сайт + каталог + TG + YouTube (сессия 2+)
 
+### Added (сессия 8, 2026-06-03 — Dashboard + HMI + Знания + Партии + ijiza парсинг)
+- **Dashboard (`/`)**:
+  - KPI-карточки (камеры, рецепты, партии, конкуренты)
+  - BarChart + PieChart распределения партий по статусам (Recharts)
+  - Статус камер с иконками типа (горячее/холодное/универсальное/электро)
+  - Быстрые действия: новый рецепт, запуск партии, анализ конкурентов
+  - Авто-обновление каждые 30 секунд
+- **Партии (`/batches`, `/batches/new`)**:
+  - Список партий с фильтрацией по статусу и поиском
+  - Карточки с иконками статуса (planned/running/completed/cancelled)
+  - Форма создания партии: выбор камеры, рецепта, веса, номера
+  - Авто-генерация номера партии (B-YYYY-NNN)
+- **Знания (`/knowledge`, `/knowledge/[slug]`)**:
+  - 4 seed-статьи: температурные режимы ГК, холодное копчение, 10 ошибок, выбор камеры
+  - Фильтрация по категориям и поиск
+  - Markdown-рендеринг статей
+- **Рецепты улучшены (`/recipes`, `/recipes/[slug]`)**:
+  - Карточки с фазами программы (температура, время)
+  - Детальная страница: температурный профиль (BarChart), таблица фаз, ГОСТ, примечания
+- **HMI (`/chambers/[id]`)**:
+  - Real-time WebSocket подключение к `/chambers/{id}/telemetry/ws`
+  - Fallback на mock-данные при отключении
+  - Индикатор Live/Mock статуса
+  - График температуры камеры и продукта (AreaChart)
+  - Прогресс-бар текущей фазы
+  - Кнопки управления (Старт/Пауза/Стоп)
+- **ijiza.ru парсинг завершён:**
+  - 34 модели камер с характеристиками (вес, габариты, мощность, режимы, автоматизация)
+  - Подтверждение облачных функций: BBQ Smoker Red Dolly — «сенсорная панель с удалённым доступом»
+  - 18 моделей Ижицы в БД с реальными данными
+- **Backend fixes:**
+  - Dashboard endpoint `/dashboard/stats`
+  - Batch schema: `chamber_name`, `recipe_name`, `operator_name`
+  - PageParams default во всех 7 endpoints (без обязательного `?page=1&size=20`)
+  - `power_kw` Integer → Float (3.5 кВт вместо 3)
+
+### Added (сессия 7, 2026-06-03 — frontend архитектура + backend конкуренты + API интеграция)
+- **Frontend архитектура:**
+  - API клиент (`axios` + interceptors для JWT refresh)
+  - TanStack Query client (`staleTime: 5min`, retry: 1)
+  - Zustand auth store (login/logout/restore с `persist` middleware)
+  - Layout: Sidebar + Header + MainLayout (адаптив, защищённые роуты)
+  - Providers: QueryClientProvider в корне
+- **Frontend страницы (все с API):**
+  - `/login` — RHF + Zod, демо-логины, JWT хранение
+  - `/chambers` — список камер из БД (с бейджами: электростатика, охлаждение)
+  - `/recipes` — список рецептов из БД (статус: утверждён/черновик)
+  - `/settings` — профиль пользователя + о системе
+  - `/competitors` — теперь данные из API, убран hardcoded
+- **Backend: модели Competitor + API + seed:**
+  - `app/models/competitor.py` — Competitor, CompetitorModel, CompetitorProblem
+  - `app/schemas/competitor.py` — Pydantic v2 Read/Create/Update
+  - `app/api/v1/endpoints/competitors.py` — CRUD + фильтры (is_main, segment)
+  - `app/scripts/seed.py` — 4 конкурента (Ижица, Mauting, Fessmann, Kerres) + модели + проблемы
+  - Alembic миграция `add competitors` сгенерирована и применена
+- **Исправления:**
+  - **Коррекция данных Ижицы:** облако / мобильное / удаленный мониторинг — **есть** (опция для малых моделей, стандарт для промышленных). Ранее было ошибочно зафиксировано как отсутствующее. Обновлены БД, seed.py, COMPETITORS.md.
+  - TypeScript: `hasCloud`/`hasMobileApp`/`hasRemoteMonitoring`/`hasVideoCamera` — `boolean | null`
+  - Competitor strengths/weaknesses — JSON колонки в PostgreSQL
+  - API пагинация: отдельные `page`/`size` Query параметры (вместо PageParams объектов)
+
 ### Added (сессия 6, 2026-06-03 — скиллы, роли агента, план)
 - **AGENTS.md обновлён**: добавлены 4 ключевые роли агента (главный архитектор/разработчик, главный дизайнер UI/UX, главный технолог по копчению, мега-визуализатор программ и качества).
 - **Созданы 9 новых SKILL.md** (в `.opencode/skills/`):
@@ -41,6 +102,46 @@
   - 6 режимов работы (прогрев, сушка, жарка, копчение, варка, запекание)
   - 1000 программ, условия перехода, одношаговый режим, управление влажностью
   - 10 слабых сторон для превосходства FELETI-SMOK
+- **Глубокий анализ конкурентов** (web-парсинг + форумы + FAQ):
+  - `docs/research/ijiza/DEEP_DIVE.md` — полный анализ Ижицы (компания, линейка, HMI, 30+ рецептов, 7 проблем из форумов, сильные/слабые стороны)
+  - `docs/COMPETITORS.md` — матрица конкурентов (Ижица, Mauting, Fessmann, Kerres, AGROS, Reich) с ценами, функциями, сравнением
+  - Обновлен `docs/research/ijiza/README.md` — добавлены реальные данные из форумов (me23.ru), FAQ (ijiza.userecho.ru), стандартные программы 02.01/02.02/02.03
+- **UI/UX Концепция экрана "Анализ конкурентов"** в программе:
+  - `docs/design/COMPETITORS_UI.md` — дизайн-документ для frontend-реализации
+  - Progressive Disclosure (карточка → раскрытие → вкладки → детали)
+  - 5 вкладок: Обзор / Модели / Рецепты / Проблемы / Сравнение
+  - Сравнительная матрица с цветовой индикацией (✅ зеленый — FELETI лучше)
+  - Мировые референсы: Linear, Apple, Figma, Notion, Tesla
+  - Адаптивность: desktop 3 колонки / tablet 2 / mobile 1 + Drawer
+  - Анимации: Framer Motion (раскрытие, переключение, hover)
+  - Модели БД: Competitor, CompetitorModel, CompetitorProblem
+- **YouTube-парсинг Ижицы** — массовая транскрибация видео:
+  - Найдено 118 уникальных видео (20 запросов, дедупликация)
+  - Скачано 1.85 GB аудио (все 118 файлов)
+  - Транскрибация faster-whisper tiny (17x real-time на i5-10300H) — **118/118 завершено**
+  - Скрипты: `scripts/parse_ijiza_youtube.py` (поиск+скачивание), `scripts/transcribe_all.py` (транскрибация+анализ)
+  - Результаты: `docs/research/ijiza/youtube/transcripts/` + `summary.json` + `REPORT.md`
+  - Извлечено: 29 продуктов, 29 технологий, 20 проблем, 14 единиц оборудования
+  - 2,856,475 символов транскриптов
+  - Новые проблемы Ижицы из видео: нагар, перегрев, плесень, трещины, капли конденсата, неправильный цвет, проблемы с шибером/зольником
+  - 5 новых проблем добавлены в БД через `scripts/add_problems.py`
+- **Frontend init** — Next.js 14 + shadcn/ui + PWA:
+  - `frontend/` — полноценное Next.js 14 приложение (App Router, TypeScript, Tailwind)
+  - shadcn/ui — компоненты Button, дизайн-система
+  - Framer Motion — анимации (fade, slide, hover-lift)
+  - FELETI бренд: графит (#1a1a1a) + золотой (#c9a96e), темная тема по умолчанию
+  - PWA конфигурация (next-pwa, service worker, manifest)
+  - Прокси API → backend (localhost:8000)
+  - TypeScript проходит `tsc --noEmit` без ошибок
+  - Dev сервер работает: http://localhost:3000
+- **Страница "Анализ конкурентов"** (`/competitors`):
+  - 4 конкурента: Ижица (главный), Mauting, Fessmann, Kerres
+  - CompetitorCard — раскрывающаяся карточка с метриками (загрузка, рецепты, HMI, гарантия)
+  - CompetitorDetails — 4 вкладки: Обзор / Модели / Проблемы / Сравнение
+  - Сравнительная матрица FELETI-SMOK vs конкурент (✅/❌)
+  - Поиск и фильтр по сегментам (Horeca/Profi/Industrial)
+  - Анимации: layout animation переключения табов, hover-эффекты
+  - Цветовая индикация проблем (красный/желтый/зеленый)
 - **Новый SKILL.md:** `hmi-chamber` — спецификация HMI панели FELETI-SMOK
   - 7 экранов (Dashboard, Programs, Editor, Debug, Trends, Log, Settings)
   - Сравнение с Ижицей (12 пунктов где FELETI-SMOK лучше)

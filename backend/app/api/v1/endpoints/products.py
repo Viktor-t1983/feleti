@@ -22,7 +22,7 @@ router = APIRouter()
 async def list_products(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()],
+    params: Annotated[PageParams, Query()] = PageParams(),
     category: Annotated[str | None, Query()] = None,
 ) -> Page[ProductRead]:
     stmt = select(Product)

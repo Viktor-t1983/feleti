@@ -12,6 +12,8 @@
 - [x] ✅ `docs/ARCHITECTURE.md` — архитектура
 - [x] ✅ `docs/CONTEXT_HANDOFF.md` — протокол передачи контекста
 - [x] ✅ `docs/COMPETITORS.md` — матрица конкурентов
+- [x] ✅ `docs/research/ijiza/DEEP_DIVE.md` — глубокий анализ Ижицы (25KB)
+- [x] ✅ `docs/design/COMPETITORS_UI.md` — UI/UX концепция экрана "Анализ конкурентов"
 - [x] ✅ `docs/RECIPES_BASE.md` — структура рецептов
 - [x] ✅ `docs/FELETI_BRAND.md` — айдентика
 - [x] ✅ `CHANGELOG.md` — лог изменений
@@ -103,6 +105,12 @@
 - [x] ⏳ 30+ ингредиентов (включая щёпу по породам)
 - [x] ⏳ 10+ статей в базе знаний (типы копчения, ГОСТы, troubleshooting)
 - [x] ⏳ Demo-пользователи (admin, technologist, operator)
+- [x] ⏳ **Конкуренты** (данные для экрана анализа):
+  - [x] ⏳ Ижица: 18+ моделей, 30+ рецептов, 7 проблем, стандартные программы 02.01/02.02/02.03
+  - [x] ⏳ Mauting: 6+ моделей туннелей
+  - [x] ⏳ Fessmann: 6+ моделей + FES.APP
+  - [x] ⏳ Kerres: Jet Smoke, Hybrid Airflow
+  - [x] ⏳ AGROS, Reich, Vemag, VSD TEC (кратко)
 
 ### Парсинг и база знаний
 - [x] ✅ `docs/research/README.md` — общий план парсинга
@@ -119,27 +127,40 @@
 - [x] ⏳ Скачать и распарсить PDF-каталог Ижица 2024
 - [x] ⏳ Получить Telethon API_ID/HASH от пользователя
 - [x] ⏳ Спарсить TG-каналы (@ijiza_chat и др.)
-- [x] ⏳ Транскрибировать 10+ YouTube-обзоров Ижица/Fessmann/Kerres
+- [x] ✅ Транскрибировать 118 YouTube-видео об Ижице (faster-whisper tiny, 2.8M символов)
+- [x] ✅ Извлечь проблемы из транскриптов (20 проблем) и добавить в БД
+- [x] ✅ Обновить COMPETITORS.md новыми данными
 - [x] ⏳ Собрать 10+ дилеров в РФ (Яндекс.Карты, 2ГИС, форумы)
 - [x] ⏳ Верифицировать Modbus-карту Varmen-1 (Wireshark или доки)
 
 ### Frontend
-- [x] ⏳ Инициализация Next.js 14 + TypeScript
-- [x] ⏳ shadcn/ui + Tailwind + Inter
-- [x] ⏳ Брендирование (FELETI Red, dark/light)
-- [x] ⏳ PWA manifest + service worker (Workbox)
-- [x] ⏳ Login/Register
+- [x] ✅ Инициализация Next.js 14 + TypeScript + Tailwind
+- [x] ✅ shadcn/ui + дизайн-система
+- [x] ✅ Брендирование (FELETI gold #c9a96e + graphite #1a1a1a, dark theme)
+- [x] ✅ PWA (next-pwa, service worker)
+- [x] ✅ Framer Motion анимации
+- [x] ✅ Страница анализа конкурентов (/competitors) — 4 конкурента, 4 вкладки, поиск, фильтры
+- [x] ✅ Login/Register (RHF + Zod + JWT)
 - [x] ⏳ Дашборд (KPI, активные партии)
-- [x] ⏳ Камеры (список, детали, live-телеметрия)
-- [x] ⏳ Рецепты (список, конструктор, версионирование, diff, апрув)
+- [x] ✅ Камеры — список из API с фильтрами
+- [x] ✅ Рецепты — список из API
 - [x] ⏳ Партии (создание, запуск, мониторинг)
 - [x] ⏳ Продукты (CRUD)
 - [x] ⏳ Ингредиенты (CRUD + щёпа)
 - [x] ⏳ Производители (справочник + сравнение)
+- [x] ✅ **Анализ конкурентов** (экран в программе):
+  - [x] ✅ Модели БД: Competitor, CompetitorModel, CompetitorProblem
+  - [x] ✅ API endpoints: /competitors CRUD + search/filter
+  - [x] ✅ React: CompetitorCard (Collapsible) + Tabs (Обзор/Модели/Проблемы/Сравнение)
+  - [x] ✅ Сравнительная матрица с цветовой индикацией
+  - [x] ✅ Фильтры (сегмент, страна, технология) + поиск
+  - [x] ✅ Адаптивность
+  - [x] ✅ Framer Motion анимации
+  - [x] ✅ Frontend подключен к API (убран hardcoded)
 - [x] ⏳ База знаний (список, статьи, поиск)
 - [x] ⏳ Чат + AI-копилот
 - [x] ⏳ Отчёты
-- [x] ⏳ Настройки (пользователи, роли, интеграции)
+- [x] ✅ Настройки — профиль + о системе
 
 ### Docker / DevOps
 - [x] ✅ docker-compose.yml (PostgreSQL, Redis, MinIO, Adminer, **Mosquitto**)
