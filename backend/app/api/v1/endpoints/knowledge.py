@@ -1,9 +1,7 @@
-"""CRUD базы знаний + полнотекстовый поиск.
+"""CRUD базы знаний + полнотекстовый поиск + RAG.
 
-Search стратегия (текущая):
-  - ILIKE по title + body_md + excerpt + tags.
-  - Скоринг: title=3, tags=2, body=1, excerpt=2.
-  - Полнотекст на tsvector — план на следующую сессию (через Alembic-миграцию).
+Search: PostgreSQL FTS (tsvector) с fallback на ILIKE.
+RAG: вопрос → поиск релевантных статей → синтезированный ответ.
 """
 
 from __future__ import annotations
@@ -12,7 +10,7 @@ import re
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -32,6 +30,8 @@ from app.schemas.knowledge import (
     KnowledgeArticleSummary,
     KnowledgeArticleUpdate,
     KnowledgeSearchResult,
+    RAGAnswer,
+    RAGQuery,
 )
 from app.services import audit
 
@@ -101,7 +101,7 @@ async def list_articles(
 @router.get(
     "/search",
     response_model=list[KnowledgeSearchResult],
-    summary="Поиск по базе знаний (title/body/excerpt/tags)",
+    summary="Полнотекстовый поиск (FTS) по базе знаний",
 )
 async def search_articles(
     db: DBSession,
@@ -110,65 +110,97 @@ async def search_articles(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     category: Annotated[ArticleCategoryEnum | None, Query()] = None,
 ) -> list[KnowledgeSearchResult]:
-    """Поиск по title, body_md, excerpt и tags с простым скорингом.
+    """Поиск через PostgreSQL FTS (tsvector) по body_md + title.
 
-    Запрос разбивается на слова (>= 2 символов), каждое слово ищется независимо
-    через ILIKE. Финальный score — сумма вкладов (title=3, tags=2, excerpt=2, body=1).
+    Возвращает статьи + подсвеченные фрагменты (snippet).
     """
     pattern = re.compile(r"[\s,.;:!?()\[\]{}\"']+")
-    words = [w for w in pattern.split(q) if len(w) >= 2][:10]  # max 10 слов
+    words = [w for w in pattern.split(q) if len(w) >= 2][:10]
     if not words:
         return []
 
-    # Строим OR-выражение по всем словам
-    word_filters = []
-    for w in words:
-        w_like = f"%{w}%"
-        word_filters.append(
-            or_(
-                KnowledgeArticle.title.ilike(w_like),
-                KnowledgeArticle.body_md.ilike(w_like),
-                KnowledgeArticle.excerpt.ilike(w_like),
-            )
+    # Пробуем FTS
+    try:
+        ts_query = " & ".join(words)
+        fts_condition = text(
+            "to_tsvector('russian', body_md || ' ' || title) @@ plainto_tsquery('russian', :q)"
         )
-    where_clause = or_(*word_filters)
+        headline = text(
+            "ts_headline('russian', body_md, plainto_tsquery('russian', :q), "
+            "'MaxWords=50, MinWords=20, StartSel=<mark>, StopSel=</mark>')"
+        )
 
-    stmt = select(KnowledgeArticle).where(where_clause)
-    if category is not None:
-        stmt = stmt.where(KnowledgeArticle.category == category)
-    stmt = stmt.limit(limit * 2)  # берём с запасом, потом отсортируем
+        stmt = select(KnowledgeArticle, headline.label("_snippet")).where(
+            fts_condition
+        )
+        if category is not None:
+            stmt = stmt.where(KnowledgeArticle.category == category)
 
-    rows = (await db.scalars(stmt)).all()
+        # ranking
+        stmt = stmt.order_by(
+            text("ts_rank(to_tsvector('russian', body_md || ' ' || title), plainto_tsquery('russian', :q)) DESC")
+        ).limit(limit)
 
-    # Считаем score для каждого результата
-    results: list[KnowledgeSearchResult] = []
-    for article in rows:
-        score = 0
-        title_lc = (article.title or "").lower()
-        body_lc = (article.body_md or "").lower()
-        excerpt_lc = (article.excerpt or "").lower()
-        tags_lc = [t.lower() for t in (article.tags or [])]
-        for w in words:
-            wl = w.lower()
-            if wl in title_lc:
-                score += 3
-            if any(wl == t or wl in t for t in tags_lc):
-                score += 2
-            if wl in excerpt_lc:
-                score += 2
-            if wl in body_lc:
-                score += 1
-        if score > 0:
+        rows = (await db.execute(stmt, {"q": q})).all()
+        results = []
+        for article, snippet in rows:
+            snippet_str = (snippet or "") if snippet else _excerpt(article.body_md or "", q)
+            snippet_clean = re.sub(r"<[^>]+>", "", snippet_str)[:300]
             results.append(
                 KnowledgeSearchResult(
                     article=KnowledgeArticleSummary.model_validate(article),
-                    score=float(score),
-                    snippet=_excerpt(article.body_md or "", w),
+                    score=1.0,
+                    snippet=snippet_clean,
                 )
             )
-    # Сортируем по score desc, обрезаем до limit
-    results.sort(key=lambda r: (-r.score, -r.article.updated_at.timestamp()))
-    return results[:limit]
+        return results
+    except Exception:
+        # FTS недоступен — fallback на ILIKE
+        word_filters = []
+        for w in words:
+            w_like = f"%{w}%"
+            word_filters.append(
+                or_(
+                    KnowledgeArticle.title.ilike(w_like),
+                    KnowledgeArticle.body_md.ilike(w_like),
+                    KnowledgeArticle.excerpt.ilike(w_like),
+                )
+            )
+        where_clause = or_(*word_filters)
+
+        stmt = select(KnowledgeArticle).where(where_clause)
+        if category is not None:
+            stmt = stmt.where(KnowledgeArticle.category == category)
+        stmt = stmt.limit(limit * 2)
+
+        rows = (await db.scalars(stmt)).all()
+        results: list[KnowledgeSearchResult] = []
+        for article in rows:
+            score = 0
+            title_lc = (article.title or "").lower()
+            body_lc = (article.body_md or "").lower()
+            excerpt_lc = (article.excerpt or "").lower()
+            tags_lc = [t.lower() for t in (article.tags or [])]
+            for w in words:
+                wl = w.lower()
+                if wl in title_lc:
+                    score += 3
+                if any(wl == t or wl in t for t in tags_lc):
+                    score += 2
+                if wl in excerpt_lc:
+                    score += 2
+                if wl in body_lc:
+                    score += 1
+            if score > 0:
+                results.append(
+                    KnowledgeSearchResult(
+                        article=KnowledgeArticleSummary.model_validate(article),
+                        score=float(score),
+                        snippet=_excerpt(article.body_md or "", w),
+                    )
+                )
+        results.sort(key=lambda r: (-r.score, -r.article.updated_at.timestamp()))
+        return results[:limit]
 
 
 @router.get(
@@ -337,3 +369,115 @@ async def delete_article(
         before=before,
     )
     await db.commit()
+
+
+@router.post(
+    "/ask",
+    response_model=RAGAnswer,
+    summary="RAG: задать вопрос по базе знаний",
+)
+async def ask_question(
+    payload: RAGQuery,
+    db: DBSession,
+    _user: CurrentUser,
+) -> RAGAnswer:
+    """Поиск релевантных статей по вопросу + синтез ответа.
+
+    Поиск — через FTS. Синтез — через выделение ключевых фрагментов.
+    При наличии Ollama/OpenAI будет использована LLM.
+    """
+    q = payload.question
+
+    # 1. Ищем релевантные статьи через FTS
+    try:
+        fts_condition = text(
+            "to_tsvector('russian', body_md || ' ' || title) @@ plainto_tsquery('russian', :q)"
+        )
+        stmt = (
+            select(KnowledgeArticle)
+            .where(fts_condition)
+            .order_by(
+                text(
+                    "ts_rank(to_tsvector('russian', body_md || ' ' || title), "
+                    "plainto_tsquery('russian', :q)) DESC"
+                )
+            )
+            .limit(payload.top_k)
+        )
+        rows = (await db.execute(stmt, {"q": q})).scalars().all()
+    except Exception:
+        # Fallback: ILIKE
+        like = f"%{q}%"
+        stmt = (
+            select(KnowledgeArticle)
+            .where(
+                or_(
+                    KnowledgeArticle.title.ilike(like),
+                    KnowledgeArticle.body_md.ilike(like),
+                )
+            )
+            .limit(payload.top_k)
+        )
+        rows = (await db.scalars(stmt)).all()
+
+    if not rows:
+        return RAGAnswer(
+            answer="По вашему вопросу ничего не найдено в базе знаний.",
+            sources=[],
+            query=q,
+        )
+
+    # 2. Собираем источники со сниппетами
+    sources = []
+    context_parts = []
+    for article in rows:
+        snippet = _excerpt(article.body_md or "", q, window=300)
+        sources.append(
+            KnowledgeSearchResult(
+                article=KnowledgeArticleSummary.model_validate(article),
+                score=1.0,
+                snippet=snippet,
+            )
+        )
+        context_parts.append(
+            f"## {article.title}\n{snippet}"
+        )
+
+    # 3. Синтезируем ответ (rule-based, пока нет LLM)
+    context = "\n\n".join(context_parts)
+
+    # Группируем источники по категориям для ответа
+    recipes = [a for a in rows if a.category.value == "recipe"]
+    guides = [a for a in rows if a.category.value == "guide"]
+    troubleshooting = [a for a in rows if a.category.value == "troubleshooting"]
+
+    answer_parts = [f"По запросу «{q}» найдено {len(rows)} релевантных статей."]
+
+    if recipes:
+        answer_parts.append(
+            f"\nРецепты: {', '.join(r.title for r in recipes[:3])}."
+        )
+    if guides:
+        answer_parts.append(
+            f"\nРуководства: {', '.join(g.title for g in guides[:3])}."
+        )
+    if troubleshooting:
+        answer_parts.append(
+            f"\nРешение проблем: {', '.join(t.title for t in troubleshooting[:3])}."
+        )
+
+    # Добавляем фрагменты из топ-2 статей
+    for article in rows[:2]:
+        snippet = _excerpt(article.body_md or "", q, window=400)
+        if snippet:
+            answer_parts.append(f"\n\nИз статьи «{article.title}»:\n{snippet[:500]}")
+
+    answer_parts.append(
+        "\n\nДля более точного ответа настройте Ollama или OpenAI в переменных окружения."
+    )
+
+    return RAGAnswer(
+        answer="".join(answer_parts),
+        sources=sources,
+        query=q,
+    )

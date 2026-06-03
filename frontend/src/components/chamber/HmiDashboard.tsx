@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Wifi, WifiOff, Droplets, Thermometer, Gauge } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { HmiData, TelemetryPoint, ChamberStatus } from "@/lib/types/chamber";
 import { STATUS_CONFIG } from "@/lib/types/chamber";

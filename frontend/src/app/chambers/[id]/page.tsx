@@ -8,8 +8,6 @@ import {
   FileEdit,
   Maximize2,
   Minimize2,
-  Play,
-  Square,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";

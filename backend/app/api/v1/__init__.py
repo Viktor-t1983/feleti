@@ -6,6 +6,7 @@ api_router = APIRouter()
 
 # Подключаем все эндпоинты
 from app.api.v1.endpoints import (  # noqa: E402, F401
+    ai,
     auth,
     batches,
     brines,
@@ -37,3 +38,4 @@ api_router.include_router(telemetry.router, prefix="/chambers", tags=["telemetry
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(competitors.router, prefix="/competitors", tags=["competitors"])
 api_router.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"])

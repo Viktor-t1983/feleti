@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Clock, Thermometer, ChefHat, Weight, CheckCircle2, XCircle } from "lucide-react";
+import { Clock, Thermometer, ChefHat, Weight, CheckCircle2 } from "lucide-react";
 
 interface BatchItem {
   id: number;

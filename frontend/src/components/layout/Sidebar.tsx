@@ -12,6 +12,7 @@ import {
   Home,
   Package,
   Lightbulb,
+  Brain,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
 
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/recipes", label: "Рецепты", icon: BookOpen },
   { href: "/batches", label: "Партии", icon: Package },
   { href: "/knowledge", label: "Знания", icon: Lightbulb },
+  { href: "/ai", label: "AI-ассистент", icon: Brain },
   { href: "/competitors", label: "Конкуренты", icon: BarChart3 },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];

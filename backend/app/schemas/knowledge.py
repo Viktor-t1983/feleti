@@ -123,6 +123,21 @@ class KnowledgeSearchResult(APIModel):
     snippet: str | None = None
 
 
+class RAGAnswer(APIModel):
+    """Ответ RAG: синтезированный ответ + источники."""
+
+    answer: str
+    sources: list[KnowledgeSearchResult]
+    query: str
+
+
+class RAGQuery(APIModel):
+    """Запрос к RAG."""
+
+    question: Annotated[str, Field(min_length=2, max_length=1000)]
+    top_k: Annotated[int, Field(ge=1, le=20)] = 5
+
+
 __all__ = [
     "ArticleCategoryEnum",
     "AttachmentKindEnum",
@@ -133,4 +148,6 @@ __all__ = [
     "KnowledgeArticleUpdate",
     "KnowledgeAttachmentCreate",
     "KnowledgeSearchResult",
+    "RAGAnswer",
+    "RAGQuery",
 ]

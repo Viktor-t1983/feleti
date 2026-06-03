@@ -15,6 +15,7 @@ from app.models.knowledge import KnowledgeArticle, KnowledgeAttachment  # noqa: 
 from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem  # noqa: F401, E402
 from app.models.telemetry import TelemetryReading  # noqa: F401, E402
 from app.models.audit import AuditLog  # noqa: F401, E402
+from app.models.ai_settings import AISettings  # noqa: F401, E402
 
 __all__ = [
     "Base",
@@ -34,4 +35,5 @@ __all__ = [
     "KnowledgeAttachment",
     "TelemetryReading",
     "AuditLog",
+    "AISettings",
 ]
