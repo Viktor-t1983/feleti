@@ -254,14 +254,13 @@
 
 ## 📅 Ближайшие сессии (приоритет) — ОБНОВЛЕНО 2026-06-03
 
-> **Приоритет:** Knowledge Pipeline → Streaming AI → Редактор рецептов.
-> Seed (65 рецептов), Продукты, Партии и HMI-компоненты готовы.
+> **Приоритет:** Streaming AI → Редактор рецептов → Тестирование.
+> Knowledge Pipeline готов (парсинг Mauting, Fessmann, Kerres, Ijiza, Agros через UI).
 
-1. **Сессия 12 (Knowledge Pipeline):** Парсинг Mauting, Fessmann, Kerres через API pipeline
-2. **Сессия 13 (Streaming AI):** SSE/WebSocket для /ai чата
-3. **Сессия 14 (Редактор рецептов):** CRUD + конструктор фаз
-4. **Сессия 15 (тестирование):** pytest + интеграционные тесты
-5. **Сессия 16 (реальный стенд):** FELETI-SMOK driver + Kinco PLC
+1. **Сессия 13 (Streaming AI):** SSE/WebSocket для /ai чата
+2. **Сессия 14 (Редактор рецептов):** CRUD + конструктор фаз
+3. **Сессия 15 (тестирование):** pytest + интеграционные тесты
+4. **Сессия 16 (реальный стенд):** FELETI-SMOK driver + Kinco PLC
 
 ---
 

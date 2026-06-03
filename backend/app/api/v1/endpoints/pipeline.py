@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import select, func
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentUser, DBSession
 from app.core.celery_app import get_celery
 from app.tasks.knowledge_tasks import (
     crawl_web,
@@ -14,12 +15,27 @@ from app.tasks.knowledge_tasks import (
     transcribe_youtube,
     parse_pdf,
 )
+from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem
+from app.models.knowledge import KnowledgeArticle
+from app.services.web_crawler import WebCrawler
+from app.services.llm_extractor import LlmExtractor
+from app.services.knowledge_saver import KnowledgeSaver
+from app.schemas.knowledge import KnowledgeArticleRead
 
 router = APIRouter()
 
 CELERY = get_celery()
 
 COMPETITOR_NAMES = ["ijiza", "mauting", "fessmann", "kerres", "agros"]
+
+# Конфигурация синхронного парсинга (без Celery)
+SYNC_COMPETITORS: dict[str, dict] = {
+    "ijiza": {"base_url": "https://ijiza.ru", "sitemap": "https://ijiza.ru/sitemap.xml", "max_pages": 30},
+    "mauting": {"base_url": "https://www.mauting.com", "sitemap": None, "max_pages": 20},
+    "fessmann": {"base_url": "https://www.fessmann.com", "sitemap": None, "max_pages": 20},
+    "kerres": {"base_url": "https://www.kerres.de", "sitemap": None, "max_pages": 20},
+    "agros": {"base_url": "https://agros.su", "sitemap": None, "max_pages": 20},
+}
 
 
 @router.post(
@@ -119,3 +135,134 @@ async def list_tasks(
             tasks.append({"worker": worker, "state": "scheduled", **t})
 
     return tasks[:100]
+
+
+@router.post(
+    "/crawl/competitor/{name}/sync",
+    summary="Парсинг конкурента (синхронно, без Celery)",
+)
+async def api_crawl_competitor_sync(
+    name: str,
+    db: DBSession,
+    _user: CurrentUser,
+) -> dict:
+    """Запустить парсинг конкурента непосредственно в запросе (без Celery)."""
+    if name not in SYNC_COMPETITORS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Неизвестный конкурент. Доступны: {', '.join(SYNC_COMPETITORS)}",
+        )
+
+    config = SYNC_COMPETITORS[name]
+    urls_to_crawl = [config["base_url"]]
+    results_summary = {"articles": 0, "models": 0, "errors": 0, "pages_crawled": 0}
+
+    crawler = WebCrawler()
+
+    try:
+        if config.get("sitemap"):
+            sitemap_urls = await crawler.crawl_sitemap(config["sitemap"])
+            urls_to_crawl.extend(sitemap_urls)
+        urls_to_crawl = urls_to_crawl[: config.get("max_pages", 20)]
+
+        source_name = name.title()
+        all_extracted = []
+
+        for url in urls_to_crawl:
+            raw = await crawler.crawl(url)
+            results_summary["pages_crawled"] += 1
+            if raw.errors:
+                results_summary["errors"] += 1
+                continue
+
+            from app.services.llm_extractor import _extract_by_rules
+            extracted = _extract_by_rules(raw)
+            for item in extracted:
+                item.manufacturer = source_name
+            all_extracted.extend(extracted)
+
+        await crawler.close()
+
+        saver = KnowledgeSaver(db)
+        save_result = await saver.save_batch(all_extracted, source_name=source_name)
+        await db.commit()
+
+        results_summary["articles"] = save_result.get("articles", 0)
+        results_summary["models"] = save_result.get("models", 0)
+
+    except Exception as e:
+        await crawler.close()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка парсинга: {e}",
+        )
+
+    return {
+        "competitor": name,
+        "status": "completed",
+        **results_summary,
+    }
+
+
+@router.get(
+    "/results",
+    summary="Результаты парсинга (статьи и модели по источнику)",
+)
+async def get_pipeline_results(
+    db: DBSession,
+    _user: CurrentUser,
+    source: str | None = Query(None),
+) -> dict:
+    """Последние результаты парсинга: статьи, модели, ошибки."""
+    articles_query = select(KnowledgeArticle).order_by(KnowledgeArticle.created_at.desc()).limit(50)
+    models_query = (
+        select(CompetitorModel)
+        .join(Competitor)
+        .order_by(CompetitorModel.id.desc())
+        .limit(50)
+    )
+    competitors_query = select(Competitor).order_by(Competitor.id)
+
+    if source:
+        pattern = f"%{source}%"
+        articles_query = (
+            select(KnowledgeArticle)
+            .where(KnowledgeArticle.source_url.ilike(pattern))
+            .order_by(KnowledgeArticle.created_at.desc())
+            .limit(50)
+        )
+
+    articles = (await db.scalars(articles_query)).all()
+    models = (await db.scalars(models_query)).all()
+    competitors = (await db.scalars(competitors_query)).all()
+
+    return {
+        "competitors": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "slug": c.slug,
+                "model_count": len(c.models) if hasattr(c, "models") else 0,
+                "problem_count": len(c.problems) if hasattr(c, "problems") else 0,
+            }
+            for c in competitors
+        ],
+        "articles": [
+            KnowledgeArticleRead.model_validate(a) for a in articles[:20]
+        ],
+        "models": [
+            {
+                "id": m.id,
+                "name": m.name,
+                "competitor_id": m.competitor_id,
+                "max_load_kg": m.max_load_kg,
+                "power_kw": m.power_kw,
+            }
+            for m in models[:20]
+        ],
+        "totals": {
+            "competitors": len(competitors),
+            "articles": len(articles),
+            "models": len(models),
+        },
+    }
