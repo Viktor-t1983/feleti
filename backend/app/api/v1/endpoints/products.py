@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import CurrentUser, DBSession
@@ -24,12 +24,21 @@ async def list_products(
     _user: CurrentUser,
     params: Annotated[PageParams, Query()] = PageParams(),
     category: Annotated[str | None, Query()] = None,
+    q: Annotated[str | None, Query()] = None,
 ) -> Page[ProductRead]:
     stmt = select(Product)
     count_stmt = select(func.count()).select_from(Product)
     if category is not None:
         stmt = stmt.where(Product.category == category)
         count_stmt = count_stmt.where(Product.category == category)
+    if q is not None:
+        pattern = f"%{q}%"
+        stmt = stmt.where(
+            or_(Product.name.ilike(pattern), Product.description.ilike(pattern))
+        )
+        count_stmt = count_stmt.where(
+            or_(Product.name.ilike(pattern), Product.description.ilike(pattern))
+        )
     total = await db.scalar(count_stmt) or 0
     stmt = (
         stmt.order_by(Product.id.asc())
@@ -45,6 +54,16 @@ async def list_products(
         size=params.size,
         pages=pages,
     )
+
+
+@router.get("/by-slug/{slug}", response_model=ProductRead, summary="Продукт по slug")
+async def get_product_by_slug(slug: str, db: DBSession, _user: CurrentUser) -> ProductRead:
+    obj = await db.scalar(select(Product).where(Product.slug == slug))
+    if obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Продукт не найден"
+        )
+    return ProductRead.model_validate(obj)
 
 
 @router.get("/{product_id}", response_model=ProductRead, summary="Продукт по ID")
