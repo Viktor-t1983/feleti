@@ -49,6 +49,11 @@ data/uploads/
 data/minio/
 data/mosquitto/
 
+# Research / Large media files
+docs/research/*/youtube/audio/
+docs/research/*/youtube/transcripts/
+data/youtube/
+
 # Misc
 *.bak
 *.tmp
