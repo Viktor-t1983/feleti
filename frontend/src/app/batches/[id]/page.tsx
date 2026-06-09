@@ -100,7 +100,7 @@ export default function BatchDetailPage() {
       const { data } = await apiClient.get(`/batches/${batchId}`);
       return data as BatchDetail;
     },
-    refetchInterval: 15000,
+    refetchInterval: 30000,
   });
 
   const performAction = async (action: string) => {
@@ -224,7 +224,7 @@ export default function BatchDetailPage() {
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => performAction(batch.status === "PAUSED" ? "cancel" : "complete")}
+                onClick={() => performAction("complete")}
                 disabled={actionLoading !== null}
                 className="inline-flex items-center gap-2 rounded-xl border bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20 px-6 py-3 text-sm font-medium transition-all cursor-pointer disabled:opacity-50"
               >

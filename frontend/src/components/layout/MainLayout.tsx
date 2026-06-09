@@ -1,12 +1,19 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { useAuthStore } from "@/stores/auth";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const restore = useAuthStore((s) => s.restore);
   const isLoginPage = pathname === "/login";
+
+  useEffect(() => {
+    restore();
+  }, [restore]);
 
   if (isLoginPage) {
     return <>{children}</>;

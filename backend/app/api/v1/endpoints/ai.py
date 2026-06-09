@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select, text
 
-from app.core.deps import CurrentUser, DBSession
+from app.core.deps import CurrentAdmin, CurrentUser, DBSession
 from app.models.ai_settings import AISettings
 from app.models.knowledge import KnowledgeArticle
 from app.schemas.knowledge import KnowledgeArticleSummary
@@ -253,7 +253,7 @@ async def get_ai_settings(
 async def update_ai_settings(
     payload: AISettingsUpdate,
     db: DBSession,
-    user: CurrentUser,
+    admin: CurrentAdmin,
 ) -> AISettingsRead:
     settings = await AIService.get_settings(db)
     data = payload.model_dump(exclude_unset=True)

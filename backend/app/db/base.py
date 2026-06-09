@@ -11,7 +11,7 @@ from app.models.ingredient import Ingredient  # noqa: F401, E402
 from app.models.recipe import Recipe, RecipeVersion, RecipeApproval  # noqa: F401, E402
 from app.models.brine import Brine  # noqa: F401, E402
 from app.models.batch import Batch, BatchPhase, BatchTelemetry  # noqa: F401, E402
-from app.models.knowledge import KnowledgeArticle, KnowledgeAttachment  # noqa: F401, E402
+from app.models.knowledge import KnowledgeArticle, KnowledgeAttachment, ArticleAnalysis  # noqa: F401, E402
 from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem  # noqa: F401, E402
 from app.models.telemetry import TelemetryReading  # noqa: F401, E402
 from app.models.audit import AuditLog  # noqa: F401, E402
@@ -36,4 +36,5 @@ __all__ = [
     "TelemetryReading",
     "AuditLog",
     "AISettings",
+    "ArticleAnalysis",
 ]

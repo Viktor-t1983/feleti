@@ -96,7 +96,7 @@ export default function ChambersPage() {
   const { data: activeBatches } = useQuery({
     queryKey: ["batches", "active"],
     queryFn: fetchActiveBatches,
-    refetchInterval: 15000,
+    refetchInterval: 30000,
   });
 
   const chambers = chambersData?.items || [];

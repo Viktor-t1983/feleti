@@ -15,25 +15,35 @@ import {
   Brain,
   Tag,
   Globe,
+  FlaskConical,
+  Factory,
+  Droplets,
+  Shield,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
-
-const navItems = [
-  { href: "/", label: "Главная", icon: Home },
-  { href: "/chambers", label: "Камеры", icon: Flame },
-  { href: "/recipes", label: "Рецепты", icon: BookOpen },
-  { href: "/products", label: "Продукты", icon: Tag },
-  { href: "/batches", label: "Партии", icon: Package },
-  { href: "/knowledge", label: "Знания", icon: Lightbulb },
-  { href: "/ai", label: "AI-ассистент", icon: Brain },
-  { href: "/competitors", label: "Конкуренты", icon: BarChart3 },
-  { href: "/pipeline", label: "Pipeline", icon: Globe },
-  { href: "/settings", label: "Настройки", icon: Settings },
-];
 
 export function Sidebar() {
   const pathname = usePathname();
   const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "admin" || (user as { is_superuser?: boolean } | null)?.is_superuser;
+
+  const navItems = [
+    { href: "/", label: "Главная", icon: Home },
+    { href: "/chambers", label: "Камеры", icon: Flame },
+    { href: "/recipes", label: "Рецепты", icon: BookOpen },
+    { href: "/products", label: "Продукты", icon: Tag },
+    { href: "/ingredients", label: "Ингредиенты", icon: FlaskConical },
+    { href: "/brines", label: "Рассолы", icon: Droplets },
+    { href: "/batches", label: "Партии", icon: Package },
+    { href: "/knowledge", label: "Знания", icon: Lightbulb },
+    { href: "/ai", label: "AI-ассистент", icon: Brain },
+    { href: "/manufacturers", label: "Производители", icon: Factory },
+    { href: "/competitors", label: "Конкуренты", icon: BarChart3 },
+    { href: "/pipeline", label: "Пайплайн", icon: Globe },
+    ...(isAdmin ? [{ href: "/admin", label: "Админ", icon: Shield }] : []),
+    { href: "/settings", label: "Настройки", icon: Settings },
+  ];
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-white/5 bg-[#0f0f0f]">
@@ -51,7 +61,7 @@ export function Sidebar() {
         {/* Nav */}
         <nav className="flex-1 space-y-1 px-3 py-4">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href}>
                 <div

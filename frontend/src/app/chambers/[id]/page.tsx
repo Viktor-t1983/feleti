@@ -175,7 +175,7 @@ export default function ChamberHmiPage() {
         <div className="text-center text-[10px] text-muted-foreground/30 pb-2">
           <kbd className="rounded border border-white/5 px-1.5 py-0.5 text-[9px]">Space</kbd> Пуск/Пауза ·{" "}
           <kbd className="rounded border border-white/5 px-1.5 py-0.5 text-[9px]">Esc</kbd> Стоп ·{" "}
-          <kbd className="rounded border border-white/5 px-1.5 py-0.5 text-[9px]">Ctrl+F</kbd> Fullscreen
+          <kbd className="rounded border border-white/5 px-1.5 py-0.5 text-[9px]">Ctrl+F</kbd> Полный экран
         </div>
       )}
     </div>

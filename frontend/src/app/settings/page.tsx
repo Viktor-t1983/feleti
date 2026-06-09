@@ -145,7 +145,7 @@ export default function SettingsPage() {
         </div>
       </motion.div>
 
-      {/* AI-ассистент */}
+        {/* AI-ассистент */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -165,44 +165,60 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {aiSettings && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-purple-500/10 px-3 py-1 text-xs text-purple-400">
+                <Brain className="h-3 w-3" />
+                {aiSettings.provider} / {aiSettings.model_name}
+              </span>
+            )}
             {saveMessage && (
               <span className="text-sm text-emerald-400">{saveMessage}</span>
             )}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-feleti-gold/10 px-4 py-2 text-sm font-medium text-feleti-gold transition-colors hover:bg-feleti-gold/20 disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              Сохранить
-            </button>
           </div>
         </div>
 
         {aiSettings && (
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {/* Провайдер */}
+          <div className="mt-6 space-y-6">
+            {/* Провайдер — большие карточки */}
             <div>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                 <Cpu className="h-4 w-4" />
                 Провайдер
               </label>
-              <select
-                value={aiSettings.provider}
-                onChange={(e) =>
-                  setAiSettings({ ...aiSettings, provider: e.target.value })
-                }
-                className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-purple-500/50"
-              >
-                <option value="ollama">Ollama (локальный)</option>
-                <option value="openai">OpenAI</option>
-                <option value="custom">Custom (OpenAI-совместимый)</option>
-              </select>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { id: "ollama", label: "Ollama", desc: "Локальный, бесплатно", icon: "🖥️", color: "border-blue-500/30 hover:border-blue-500/50" },
+                  { id: "deepseek", label: "DeepSeek", desc: "Китай, дёшево", icon: "🇨🇳", color: "border-green-500/30 hover:border-green-500/50" },
+                  { id: "openai", label: "OpenAI", desc: "GPT-4o, платно", icon: "☁️", color: "border-purple-500/30 hover:border-purple-500/50" },
+                  { id: "custom", label: "Custom", desc: "Свой сервер", icon: "⚙️", color: "border-white/10 hover:border-white/30" },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      const presets: Record<string, { endpoint: string; model: string }> = {
+                        ollama: { endpoint: "http://host.docker.internal:11434/v1", model: "qwen2.5:7b" },
+                        deepseek: { endpoint: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+                        openai: { endpoint: "https://api.openai.com/v1", model: "gpt-4o" },
+                        custom: { endpoint: aiSettings.endpoint, model: aiSettings.model_name },
+                      };
+                      const preset = presets[p.id] || presets.custom;
+                      setAiSettings({ ...aiSettings, provider: p.id, endpoint: preset.endpoint, model_name: preset.model });
+                    }}
+                    className={`relative flex flex-col items-center gap-1.5 rounded-xl border p-4 transition-all text-center ${
+                      aiSettings.provider === p.id
+                        ? "border-feleti-gold/50 bg-feleti-gold/10 ring-1 ring-feleti-gold/30"
+                        : `${p.color} bg-white/[0.02]`
+                    }`}
+                  >
+                    <span className="text-xl">{p.icon}</span>
+                    <span className="text-sm font-medium text-white">{p.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{p.desc}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
 
             {/* Model */}
             <div>
@@ -257,7 +273,7 @@ export default function SettingsPage() {
             <div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Sliders className="h-4 w-4" />
-                Temperature ({aiSettings.temperature})
+                Температура ({aiSettings.temperature})
               </label>
               <input
                 type="range"
@@ -279,7 +295,7 @@ export default function SettingsPage() {
             <div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <FileText className="h-4 w-4" />
-                Max tokens
+                Макс. токенов
               </label>
               <input
                 type="number"
@@ -294,40 +310,61 @@ export default function SettingsPage() {
               />
             </div>
 
-            {/* Enabled */}
-            <div className="flex items-center gap-3 md:col-span-2">
-              <button
-                onClick={() =>
-                  setAiSettings({ ...aiSettings, enabled: !aiSettings.enabled })
-                }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  aiSettings.enabled ? "bg-purple-600" : "bg-white/10"
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    aiSettings.enabled ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-              <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Power className="h-4 w-4" />
-                AI-ассистент {aiSettings.enabled ? "включён" : "отключён"}
-              </span>
+            {/* Включение + кнопки */}
+            <div className="flex flex-col gap-4 md:col-span-2 border-t border-white/5 pt-4">
+              <p className="text-xs text-muted-foreground">
+                Настройте провайдера → введите API-ключ → нажмите «Сохранить» → включите → нажмите «Тест»
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() =>
+                      setAiSettings({ ...aiSettings, enabled: !aiSettings.enabled })
+                    }
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      aiSettings.enabled ? "bg-purple-600" : "bg-white/10"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        aiSettings.enabled ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Power className="h-4 w-4" />
+                    AI {aiSettings.enabled ? "включён" : "отключён"}
+                  </span>
+                </div>
 
-              <button
-                onClick={handleTest}
-                disabled={testing || !aiSettings.enabled}
-                className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition-colors hover:bg-white/5 disabled:opacity-50"
-              >
-                {testing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                Тест
-              </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-feleti-gold/10 px-4 py-2 text-sm font-medium text-feleti-gold transition-colors hover:bg-feleti-gold/20 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Сохранить
+                </button>
+
+                <button
+                  onClick={handleTest}
+                  disabled={testing || !aiSettings.enabled}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition-colors hover:bg-white/5 disabled:opacity-50"
+                >
+                  {testing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Zap className="h-4 w-4" />
+                  )}
+                  Тест
+                </button>
+              </div>
             </div>
+          </div>
           </div>
         )}
 
@@ -337,15 +374,66 @@ export default function SettingsPage() {
             <FileText className="h-4 w-4" />
             Системный промпт
           </label>
-          <textarea
-            value={aiSettings?.system_prompt || ""}
-            onChange={(e) =>
-              aiSettings &&
-              setAiSettings({ ...aiSettings, system_prompt: e.target.value })
-            }
-            rows={4}
-            className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-purple-500/50"
-          />
+          <div className="flex gap-2 mt-1">
+            <textarea
+              value={aiSettings?.system_prompt || ""}
+              onChange={(e) =>
+                aiSettings &&
+                setAiSettings({ ...aiSettings, system_prompt: e.target.value })
+              }
+              rows={5}
+              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-purple-500/50"
+            />
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() =>
+                aiSettings &&
+                setAiSettings({
+                  ...aiSettings,
+                  system_prompt: `Ты — FELETI-SMOK, AI-ассистент технолога коптильного производства.
+Отвечай ТОЛЬКО на русском языке. Без лишних слов, без приветствий.
+
+Правила:
+1. Если дан контекст из базы знаний — используй ТОЛЬКО его.
+2. Если контекста нет — скажи «Нет информации в базе знаний».
+3. Отвечай строго по делу.
+4. Для рецепта: ингредиенты + шаги + режимы.
+5. Для проблемы: причина + решение.
+6. Для оборудования: ТТХ + цена.`,
+                })
+              }
+              className="text-xs text-purple-400 hover:text-purple-300 underline"
+            >
+              Вставить: системный промпт
+            </button>
+            <button
+              onClick={() =>
+                aiSettings &&
+                setAiSettings({
+                  ...aiSettings,
+                  system_prompt: `Ты — анализатор конкурентов в коптильной индустрии.
+Верни ТОЛЬКО JSON без пояснений.
+
+Схема JSON:
+{
+  "products": ["строка"],
+  "technologies": ["строка"],
+  "problems": [{"title": "строка", "description": "строка", "severity": "high|medium|low"}],
+  "equipment": [{"name": "строка", "specs": {"ключ": "значение"}}],
+  "key_insights": ["строка"],
+  "competitor_mentions": [{"name": "строка", "products": ["строка"], "pricing": "строка"}],
+  "category": "рецепт|оборудование|технология|кейс|другое"
+}
+
+Если поля нет — пустой массив []. Никакого текста кроме JSON.`,
+                })
+              }
+              className="text-xs text-purple-400 hover:text-purple-300 underline"
+            >
+              Вставить: анализ конкурента (JSON)
+            </button>
+          </div>
         </div>
 
         {/* Test result */}

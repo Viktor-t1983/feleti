@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Wifi, WifiOff, Droplets, Thermometer, Gauge, AlertTriangle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -113,7 +113,10 @@ export function HmiDashboard({
   }, [activeBatch, chamberId, queryClient]);
 
   const displayHmi = connected ? hmi : MOCK_HMI;
-  const displayHistory = history.length > 0 ? history : generateMockHistory();
+  const displayHistory = useMemo(
+    () => history.length > 0 ? history : generateMockHistory(),
+    [history]
+  );
   const displayPhases = activeBatch?.program || MOCK_PHASES;
   const status = STATUS_CONFIG[displayHmi.status as ChamberStatus] || STATUS_CONFIG.idle;
 
@@ -167,7 +170,7 @@ export function HmiDashboard({
           {connected ? (
             <>
               <Wifi className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-emerald-400 font-medium">Live</span>
+              <span className="text-emerald-400 font-medium">В эфире</span>
             </>
           ) : (
             <>

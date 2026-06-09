@@ -34,7 +34,8 @@ export async function askAIStream(
   signal?: AbortSignal,
 ): Promise<void> {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/ai/ask/stream`, {
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/api\/v1\/?$/, "");
+  const response = await fetch(`${baseUrl}/api/v1/ai/ask/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

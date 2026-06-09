@@ -28,18 +28,33 @@ COMPETITORS = {
         "max_pages": 50,
     },
     "mauting": {
-        "sitemap": None,
+        "sitemap": "https://www.mauting.com/sitemap.xml",
         "base_url": "https://www.mauting.com",
-        "max_pages": 20,
+        "max_pages": 50,
     },
     "fessmann": {
-        "sitemap": None,
+        "sitemap": "https://www.fessmann.com/page-sitemap.xml",
         "base_url": "https://www.fessmann.com",
-        "max_pages": 20,
+        "max_pages": 40,
     },
     "kerres": {
+        "sitemap": "https://www.kerres-group.de/en/sitemap_index.xml",
+        "base_url": "https://www.kerres-group.de",
+        "max_pages": 50,
+    },
+    "sorgo": {
         "sitemap": None,
-        "base_url": "https://www.kerres.de",
+        "base_url": "https://www.sorgo-anlagenbau.de",
+        "max_pages": 20,
+    },
+    "bastra": {
+        "sitemap": None,
+        "base_url": "https://www.bastra.com",
+        "max_pages": 20,
+    },
+    "agros": {
+        "sitemap": None,
+        "base_url": "https://www.agros.si",
         "max_pages": 20,
     },
 }

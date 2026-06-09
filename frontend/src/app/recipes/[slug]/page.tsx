@@ -13,6 +13,7 @@ import {
   FileText,
   ChefHat,
   Beaker,
+  Pencil,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import Link from "next/link";
@@ -140,12 +141,21 @@ export default function RecipeDetailPage() {
               </p>
             )}
           </div>
-          {version?.verified && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-400">
-              <CheckCircle2 className="h-4 w-4" />
-              Утверждён
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {version?.verified && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+                Утверждён
+              </span>
+            )}
+            <Link
+              href={`/recipes/${recipe.slug}/edit`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3.5 py-2 text-sm text-white hover:bg-white/5 transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+              Редактировать
+            </Link>
+          </div>
         </div>
       </div>
 

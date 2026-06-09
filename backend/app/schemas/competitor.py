@@ -49,6 +49,14 @@ class CompetitorRead(APIModel):
     description: str | None = None
     strengths: list[str] | None = None
     weaknesses: list[str] | None = None
+    base_url: str | None = None
+    sitemap_url: str | None = None
+    crawl_config: dict | None = None
+    crawl_status: str = "pending"
+    crawl_error: str | None = None
+    last_crawled_at: datetime | None = None
+    articles_count: int = 0
+    dealers: list[dict] | None = None
     models: list[CompetitorModelRead] = []
     problems: list[CompetitorProblemRead] = []
     created_at: datetime
@@ -72,6 +80,10 @@ class CompetitorCreate(APIModel):
     description: str | None = None
     strengths: list[str] | None = None
     weaknesses: list[str] | None = None
+    base_url: str | None = None
+    sitemap_url: str | None = None
+    crawl_config: dict | None = None
+    dealers: list[dict] | None = None
 
 
 class CompetitorUpdate(APIModel):
@@ -90,3 +102,30 @@ class CompetitorUpdate(APIModel):
     description: str | None = None
     strengths: list[str] | None = None
     weaknesses: list[str] | None = None
+    base_url: str | None = None
+    sitemap_url: str | None = None
+    crawl_config: dict | None = None
+
+
+class CompetitorOnboardRequest(APIModel):
+    url: str = Field(..., min_length=5, max_length=500, description="URL сайта конкурента")
+    name: str | None = Field(default=None, description="Название (если не указать — извлечётся из домена)")
+
+
+class CompetitorDiscoveredInfo(APIModel):
+    name: str
+    slug: str
+    base_url: str
+    sitemap_url: str | None = None
+    encoding: str | None = None
+    title: str | None = None
+    description: str | None = None
+    page_count: int = 0
+    error: str | None = None
+
+
+class CompetitorOnboardResponse(APIModel):
+    competitor: CompetitorRead
+    discovery: CompetitorDiscoveredInfo
+    articles_created: int = 0
+    articles_skipped: int = 0

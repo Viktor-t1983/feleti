@@ -58,9 +58,6 @@ async def get_current_user(
     return user
 
 
-CurrentUser = Annotated[User, Depends(get_current_user)]
-
-
 def require_roles(*allowed: UserRole):
     """Зависимость: пользователь должен иметь одну из перечисленных ролей (или быть superuser)."""
     allowed_set = set(allowed)
@@ -74,3 +71,18 @@ def require_roles(*allowed: UserRole):
         )
 
     return _checker
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def _require_admin(user: CurrentUser) -> User:
+    if user.is_superuser or user.role == UserRole.ADMIN:
+        return user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Требуются права администратора",
+    )
+
+
+CurrentAdmin = Annotated[User, Depends(_require_admin)]

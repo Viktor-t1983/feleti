@@ -90,24 +90,37 @@ services:
       timeout: 5s
       retries: 10
 
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #     args:
-  #       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-  #       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
-  #   container_name: feleti_frontend
-  #   restart: unless-stopped
-  #   env_file: .env
-  #   depends_on:
-  #     - backend
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   ports:
-  #     - "3000:3000"
-  #   command: npm run dev
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: feleti_frontend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: feleti_celery
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2
 
   adminer:
     image: adminer:4.8.1

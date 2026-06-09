@@ -101,7 +101,7 @@ export default function PipelinePage() {
       const { data } = await apiClient.get("/pipeline/results");
       return data as PipelineResults;
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   const crawlMutation = useMutation({
@@ -122,7 +122,7 @@ export default function PipelinePage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">Knowledge Pipeline</h1>
+        <h1 className="text-2xl font-bold text-white">Пайплайн знаний</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Парсинг сайтов конкурентов и каталогов коптильного оборудования
         </p>

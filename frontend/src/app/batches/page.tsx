@@ -101,7 +101,7 @@ export default function BatchesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["batches", filter],
     queryFn: () => fetchBatches(filter),
-    refetchInterval: filter === "active" ? 10000 : 30000,
+    refetchInterval: filter === "active" ? 20000 : 30000,
   });
 
   const batches = (data?.items || []).filter((b) => {

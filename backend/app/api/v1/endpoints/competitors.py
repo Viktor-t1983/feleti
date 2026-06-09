@@ -1,4 +1,4 @@
-"""CRUD конкурентов."""
+"""CRUD конкурентов + онбординг."""
 
 from __future__ import annotations
 
@@ -7,12 +7,19 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
-from app.core.deps import CurrentUser, DBSession
+from app.core.deps import CurrentAdmin, CurrentUser, DBSession
 from app.models.audit import AuditAction
 from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem
 from app.schemas.common import Page
-from app.schemas.competitor import CompetitorCreate, CompetitorRead, CompetitorUpdate
+from app.schemas.competitor import (
+    CompetitorCreate,
+    CompetitorOnboardRequest,
+    CompetitorOnboardResponse,
+    CompetitorRead,
+    CompetitorUpdate,
+)
 from app.services import audit
+from app.services.competitor_onboarder import CompetitorOnboarder
 
 router = APIRouter()
 
@@ -78,7 +85,7 @@ async def get_competitor(
     summary="Создать конкурента",
 )
 async def create_competitor(
-    payload: CompetitorCreate, db: DBSession, user: CurrentUser
+    payload: CompetitorCreate, db: DBSession, user: CurrentAdmin
 ) -> CompetitorRead:
     data = payload.model_dump()
     obj = Competitor(**data)
@@ -109,7 +116,7 @@ async def update_competitor(
     competitor_id: int,
     payload: CompetitorUpdate,
     db: DBSession,
-    user: CurrentUser,
+    user: CurrentAdmin,
 ) -> CompetitorRead:
     obj = await db.scalar(
         select(Competitor)
@@ -139,13 +146,33 @@ async def update_competitor(
     return CompetitorRead.model_validate(obj)
 
 
+@router.post(
+    "/onboard",
+    response_model=CompetitorOnboardResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Запустить онбординг нового конкурента",
+)
+async def onboard_competitor(
+    payload: CompetitorOnboardRequest, db: DBSession, _user: CurrentUser
+) -> CompetitorOnboardResponse:
+    """URL → разведка → краулинг → сохранение в БД."""
+    onboarder = CompetitorOnboarder(db)
+    try:
+        result = await onboarder.onboard(url=payload.url, name=payload.name)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    finally:
+        await onboarder.close()
+    return result
+
+
 @router.delete(
     "/{competitor_id}",
     status_code=status.HTTP_200_OK,
     summary="Удалить конкурента",
 )
 async def delete_competitor(
-    competitor_id: int, db: DBSession, user: CurrentUser
+    competitor_id: int, db: DBSession, user: CurrentAdmin
 ) -> None:
     obj = await db.scalar(select(Competitor).where(Competitor.id == competitor_id))
     if obj is None:

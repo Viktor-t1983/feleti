@@ -11,7 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
 if TYPE_CHECKING:
-    pass
+    from app.models.knowledge import KnowledgeArticle
 
 
 class Competitor(Base):
@@ -35,6 +35,16 @@ class Competitor(Base):
     strengths: Mapped[list[str] | None] = mapped_column(JSON)
     weaknesses: Mapped[list[str] | None] = mapped_column(JSON)
 
+    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sitemap_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    crawl_config: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    crawl_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    crawl_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_crawled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    articles_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    dealers: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True, default=None)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -45,6 +55,9 @@ class Competitor(Base):
     )
     problems: Mapped[list["CompetitorProblem"]] = relationship(
         back_populates="competitor", cascade="all, delete-orphan", lazy="selectin"
+    )
+    articles: Mapped[list["KnowledgeArticle"]] = relationship(
+        back_populates="competitor", lazy="selectin"
     )
 
     def __repr__(self) -> str:

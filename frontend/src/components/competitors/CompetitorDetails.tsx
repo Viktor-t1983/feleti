@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, X, Info, Cpu, AlertTriangle, BarChart3 } from "lucide-react";
+import { Check, X, Info, Cpu, AlertTriangle, BarChart3, ExternalLink, Globe } from "lucide-react";
 import type { Competitor } from "./CompetitorCard";
 
 const tabs = [
   { id: "overview", label: "Обзор", icon: Info },
+  { id: "dealers", label: "Дилеры", icon: Globe },
   { id: "models", label: "Модели", icon: Cpu },
   { id: "problems", label: "Проблемы", icon: AlertTriangle },
   { id: "compare", label: "Сравнение", icon: BarChart3 },
@@ -55,6 +56,7 @@ export function CompetitorDetails({ competitor }: CompetitorDetailsProps) {
         className="mt-4"
       >
         {activeTab === "overview" && <OverviewTab competitor={competitor} />}
+        {activeTab === "dealers" && <DealersTab competitor={competitor} />}
         {activeTab === "models" && <ModelsTab competitor={competitor} />}
         {activeTab === "problems" && <ProblemsTab competitor={competitor} />}
         {activeTab === "compare" && <CompareTab competitor={competitor} />}
@@ -64,11 +66,62 @@ export function CompetitorDetails({ competitor }: CompetitorDetailsProps) {
 }
 
 function OverviewTab({ competitor }: { competitor: Competitor }) {
+  const parts = competitor.description?.split(/\n(?=ОСНОВНОЕ ОБОРУДОВАНИЕ|ДРУГОЕ ОБОРУДОВАНИЕ|ВАЖНО)/) || [];
+  const intro = parts.find(p => !p.startsWith('ОСНОВНОЕ') && !p.startsWith('ДРУГОЕ') && !p.startsWith('ВАЖНО'));
+  const mainEq = parts.find(p => p.startsWith('ОСНОВНОЕ ОБОРУДОВАНИЕ'));
+  const otherEq = parts.find(p => p.startsWith('ДРУГОЕ ОБОРУДОВАНИЕ'));
+  const warning = parts.find(p => p.startsWith('ВАЖНО'));
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground leading-relaxed">
-        {competitor.description}
-      </p>
+      {intro && (
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {intro}
+        </p>
+      )}
+
+      {competitor.base_url && (
+        <a
+          href={competitor.base_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-feleti-gold/80 hover:text-feleti-gold transition-colors"
+        >
+          <ExternalLink className="h-4 w-4" />
+          {new URL(competitor.base_url).hostname}
+        </a>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {mainEq && (
+          <div className="rounded-xl bg-white/5 p-4">
+            <h4 className="mb-2 text-sm font-medium text-feleti-gold">
+              Основное оборудование
+            </h4>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {mainEq.replace('ОСНОВНОЕ ОБОРУДОВАНИЕ: ', '').replace('ОСНОВНОЕ ОБОРУДОВАНИЕ', '')}
+            </p>
+          </div>
+        )}
+        {otherEq && (
+          <div className="rounded-xl bg-white/5 p-4">
+            <h4 className="mb-2 text-sm font-medium text-blue-400">
+              Другое оборудование
+            </h4>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {otherEq.replace('ДРУГОЕ ОБОРУДОВАНИЕ: ', '').replace('ДРУГОЕ ОБОРУДОВАНИЕ', '')}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {warning && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <p className="text-sm text-amber-400/90 leading-relaxed whitespace-pre-line">
+            {warning.replace('ВАЖНО: ', '').replace('ВАЖНО', '')}
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl bg-white/5 p-4">
@@ -101,6 +154,49 @@ function OverviewTab({ competitor }: { competitor: Competitor }) {
           </ul>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DealersTab({ competitor }: { competitor: Competitor }) {
+  const dealers = competitor.dealers || [];
+  if (dealers.length === 0) {
+    return (
+      <div className="rounded-xl bg-white/5 p-6 text-center">
+        <p className="text-sm text-muted-foreground">Информация о дилерах отсутствует</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs text-muted-foreground px-3 py-2">
+        <span>Страна</span>
+        <span>Компания</span>
+        <span>Контакты</span>
+      </div>
+      {dealers.map((d, i) => (
+        <div
+          key={i}
+          className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center rounded-xl bg-white/[0.02] border border-white/5 px-3 py-2.5 text-sm hover:bg-white/[0.04] transition-colors"
+        >
+          <span className="text-white font-medium">{d.country}</span>
+          <div>
+            <span className="text-muted-foreground">{d.company}</span>
+            {d.website && (
+              <a
+                href={d.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-2 inline-flex text-feleti-gold/60 hover:text-feleti-gold"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground text-right">{d.contact || ""}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -194,10 +290,10 @@ function ProblemsTab({ competitor }: { competitor: Competitor }) {
 
 function CompareTab({ competitor }: { competitor: Competitor }) {
   const features = [
-    { label: "Облако", feleti: true, them: competitor.hasCloud },
-    { label: "Мобильное приложение", feleti: true, them: competitor.hasMobileApp },
-    { label: "Удаленный мониторинг", feleti: true, them: competitor.hasRemoteMonitoring },
-    { label: "Видеокамера", feleti: true, them: competitor.hasVideoCamera },
+    { label: "Облако", feleti: true, them: competitor.has_cloud },
+    { label: "Мобильное приложение", feleti: true, them: competitor.has_mobile_app },
+    { label: "Удаленный мониторинг", feleti: true, them: competitor.has_remote_monitoring },
+    { label: "Видеокамера", feleti: true, them: competitor.has_video_camera },
     { label: "Telegram-бот", feleti: true, them: false },
     { label: "ERP интеграция", feleti: true, them: false },
     { label: "Web-интерфейс", feleti: true, them: false },

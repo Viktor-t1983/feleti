@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Search, BarChart3, Loader2 } from "lucide-react";
+import { Search, BarChart3, Loader2, Plus, Star } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
 import { apiClient } from "@/lib/api/client";
 import { CompetitorCard } from "@/components/competitors/CompetitorCard";
@@ -30,6 +30,7 @@ export default function CompetitorsPage() {
 
   const [search, setSearch] = useState("");
   const [segment, setSegment] = useState("all");
+  const [mainOnly, setMainOnly] = useState(false);
 
   useEffect(() => {
     if (!isLoadingAuth && !isAuthenticated) {
@@ -48,7 +49,8 @@ export default function CompetitorsPage() {
   const filtered = competitors.filter((c) => {
     const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase());
     const matchesSegment = segment === "all" || (c.segment || "").toLowerCase().includes(segment);
-    return matchesSearch && matchesSegment;
+    const matchesMain = !mainOnly || c.is_main_competitor;
+    return matchesSearch && matchesSegment && matchesMain;
   });
 
   if (isLoadingAuth || !isAuthenticated) {
@@ -78,7 +80,7 @@ export default function CompetitorsPage() {
             </p>
           </motion.div>
 
-          {/* Filters */}
+          {/* Filters + Add button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -104,7 +106,28 @@ export default function CompetitorsPage() {
               <option value="horeca">Horeca</option>
               <option value="profi">Profi</option>
               <option value="industrial">Industrial</option>
+              <option value="premium">Premium</option>
+              <option value="middle">Middle</option>
+              <option value="budget">Budget</option>
             </select>
+            <button
+              onClick={() => setMainOnly(!mainOnly)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors shrink-0 ${
+                mainOnly
+                  ? "border-feleti-gold/50 bg-feleti-gold/10 text-feleti-gold"
+                  : "border-white/10 bg-white/5 text-white hover:border-white/20"
+              }`}
+            >
+              <Star className={`h-4 w-4 ${mainOnly ? "fill-feleti-gold" : ""}`} />
+              Главные
+            </button>
+            <button
+              onClick={() => router.push("/competitors/new")}
+              className="inline-flex items-center gap-2 rounded-xl bg-feleti-gold px-4 py-2.5 text-sm font-medium text-black hover:bg-feleti-gold/90 transition-colors shrink-0"
+            >
+              <Plus className="h-4 w-4" />
+              Добавить конкурента
+            </button>
           </motion.div>
         </div>
       </section>

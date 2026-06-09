@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditAction, AuditLog
+
+
+def _json_safe(val: Any) -> Any:
+    """Convert non-serializable types to JSON-safe equivalents."""
+    if isinstance(val, datetime):
+        return val.isoformat()
+    return val
+
+
+def _prepare(d: dict[str, Any] | None) -> dict[str, Any] | None:
+    if d is None:
+        return None
+    return {k: _json_safe(v) for k, v in d.items()}
 
 
 async def record(
@@ -28,11 +42,11 @@ async def record(
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
-        before=before,
-        after=after,
+        before=_prepare(before),
+        after=_prepare(after),
         ip=ip,
         user_agent=user_agent,
-        extra=extra or {},
+        extra=_prepare(extra) or {},
     )
     db.add(log)
     return log

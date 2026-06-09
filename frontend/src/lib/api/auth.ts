@@ -18,6 +18,7 @@ export interface User {
   full_name: string | null;
   role: string;
   is_active: boolean;
+  is_superuser: boolean;
 }
 
 export async function loginJson(credentials: LoginRequest): Promise<TokenResponse> {

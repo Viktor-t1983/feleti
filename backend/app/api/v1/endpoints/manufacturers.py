@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.deps import CurrentUser, DBSession
+from app.core.deps import CurrentAdmin, CurrentUser, DBSession
 from app.models.audit import AuditAction
 from app.models.manufacturer import Manufacturer
 from app.schemas.common import Page, PageParams
@@ -71,7 +71,7 @@ async def get_manufacturer(
     summary="Создать производителя",
 )
 async def create_manufacturer(
-    payload: ManufacturerCreate, db: DBSession, user: CurrentUser
+    payload: ManufacturerCreate, db: DBSession, user: CurrentAdmin
 ) -> ManufacturerRead:
     obj = Manufacturer(**payload.model_dump())
     db.add(obj)
@@ -103,7 +103,7 @@ async def update_manufacturer(
     manufacturer_id: int,
     payload: ManufacturerUpdate,
     db: DBSession,
-    user: CurrentUser,
+    user: CurrentAdmin,
 ) -> ManufacturerRead:
     obj = await db.scalar(select(Manufacturer).where(Manufacturer.id == manufacturer_id))
     if obj is None:
@@ -137,7 +137,7 @@ async def update_manufacturer(
     summary="Удалить производителя",
 )
 async def delete_manufacturer(
-    manufacturer_id: int, db: DBSession, user: CurrentUser
+    manufacturer_id: int, db: DBSession, user: CurrentAdmin
 ) -> None:
     obj = await db.scalar(select(Manufacturer).where(Manufacturer.id == manufacturer_id))
     if obj is None:

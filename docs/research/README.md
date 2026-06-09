@@ -19,15 +19,20 @@
 - **Mauting** (Чехия) — премиум, туннели.
 - **Fessmann** (Германия) — премиум с FES.APP.
 - **Kerres** (Германия) — Jet Smoke, Hybrid Airflow.
+- **Bastra** (Германия) — Intelligent cooking & smoking.
+- **Sorgo** (Австрия) — Räucher- und Kochanlagen.
 
 ### 🟡 P2 — Полезно
 - **AGROS** (Словения).
-- **Reich** (Германия).
-- **Vemag** (Германия).
-- **VSD TEC** (Казахстан).
+- **REICH** (Германия) — Klima- und Räucheranlagen.
+- **SüMann** (Германия) — Rauchanlagen, 114 лет.
+- **Vemag** (Германия) — промышленные линии.
+- **J&R Manufacturing** (США) — коммерческие смокеры.
+- **Pro Smoker** (США) — промышленные смокеры.
 
 ### 🟢 P3 — Дополнительно
 - **Hobbi Smoke**, **Atesy**, generic-клоны из Китая/Турции.
+- **Полный список:** [MANUFACTURERS.md](MANUFACTURERS.md) (55+ производителей по странам).
 - Пользовательские форумы, домашние рецепты.
 
 ---

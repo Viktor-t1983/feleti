@@ -8,12 +8,15 @@ from fastapi.responses import ORJSONResponse
 from app.api.v1 import api_router
 from app.core.config import settings
 from app.db.session import engine
+from app.services.chamber_gateway import get_chamber_gateway
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """App startup / shutdown."""
     yield
+    gateway = await get_chamber_gateway()
+    await gateway.shutdown()
     await engine.dispose()
 
 

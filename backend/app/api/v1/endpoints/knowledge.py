@@ -6,10 +6,13 @@ RAG: вопрос → поиск релевантных статей → син�
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from enum import Enum
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -17,6 +20,7 @@ from sqlalchemy.orm import selectinload
 from app.core.deps import CurrentUser, DBSession
 from app.models.audit import AuditAction
 from app.models.knowledge import (
+    ArticleAnalysis,
     ArticleCategory,
     AttachmentKind,
     KnowledgeArticle,
@@ -32,10 +36,27 @@ from app.schemas.knowledge import (
     KnowledgeSearchResult,
     RAGAnswer,
     RAGQuery,
+    ArticleAnalysisRead,
+    ArticleAnalysisTriggerResponse,
+    ArticleAnalysisBatchResponse,
+    TopicTreeNode,
 )
 from app.services import audit
+from app.services.article_analyzer import ArticleAnalyzer
+
+
+class SortField(str, Enum):
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+    TITLE = "title"
+
+
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _excerpt(text: str, query: str, window: int = 200) -> str:
@@ -59,38 +80,64 @@ def _excerpt(text: str, query: str, window: int = 200) -> str:
 async def list_articles(
     db: DBSession,
     _user: CurrentUser,
-    params: Annotated[PageParams, Query()] = PageParams(),
+    params: Annotated[PageParams, Depends()],
     category: Annotated[ArticleCategoryEnum | None, Query()] = None,
     tag: Annotated[str | None, Query()] = None,
     manufacturer_id: Annotated[int | None, Query()] = None,
+    competitor_id: Annotated[int | None, Query()] = None,
     is_published: Annotated[bool | None, Query()] = None,
+    topic_path: Annotated[str | None, Query()] = None,
+    sort_by: Annotated[SortField, Query()] = SortField.UPDATED_AT,
+    sort_order: Annotated[SortOrder, Query()] = SortOrder.DESC,
 ) -> Page[KnowledgeArticleSummary]:
-    stmt = select(KnowledgeArticle)
+    stmt = select(KnowledgeArticle).options(selectinload(KnowledgeArticle.analysis))
     count_stmt = select(func.count()).select_from(KnowledgeArticle)
     if category is not None:
         stmt = stmt.where(KnowledgeArticle.category == category)
         count_stmt = count_stmt.where(KnowledgeArticle.category == category)
     if tag is not None:
-        # JSON-массив: PostgreSQL оператор @> с jsonb
         stmt = stmt.where(KnowledgeArticle.tags.contains([tag]))
         count_stmt = count_stmt.where(KnowledgeArticle.tags.contains([tag]))
     if manufacturer_id is not None:
         stmt = stmt.where(KnowledgeArticle.manufacturer_id == manufacturer_id)
         count_stmt = count_stmt.where(KnowledgeArticle.manufacturer_id == manufacturer_id)
+    if competitor_id is not None:
+        stmt = stmt.where(KnowledgeArticle.competitor_id == competitor_id)
+        count_stmt = count_stmt.where(KnowledgeArticle.competitor_id == competitor_id)
     if is_published is not None:
         stmt = stmt.where(KnowledgeArticle.is_published == is_published)
         count_stmt = count_stmt.where(KnowledgeArticle.is_published == is_published)
+    if topic_path is not None:
+        stmt = stmt.join(ArticleAnalysis, ArticleAnalysis.article_id == KnowledgeArticle.id)
+        if topic_path.endswith("/%"):
+            stmt = stmt.where(ArticleAnalysis.topic_path.like(topic_path))
+            count_stmt = count_stmt.join(ArticleAnalysis, ArticleAnalysis.article_id == KnowledgeArticle.id).where(ArticleAnalysis.topic_path.like(topic_path))
+        else:
+            stmt = stmt.where(ArticleAnalysis.topic_path == topic_path)
+            count_stmt = count_stmt.join(ArticleAnalysis, ArticleAnalysis.article_id == KnowledgeArticle.id).where(ArticleAnalysis.topic_path == topic_path)
 
     total = await db.scalar(count_stmt) or 0
+    sort_column = getattr(KnowledgeArticle, sort_by.value)
+    order = sort_column.asc() if sort_order == SortOrder.ASC else sort_column.desc()
     stmt = (
-        stmt.order_by(KnowledgeArticle.updated_at.desc())
+        stmt.order_by(order)
         .offset((params.page - 1) * params.size)
         .limit(params.size)
     )
     rows = (await db.scalars(stmt)).all()
     pages = (total + params.size - 1) // params.size if total else 0
+
+    # enrich with topic_path from analysis
+    items = []
+    for r in rows:
+        d = KnowledgeArticleSummary.model_validate(r)
+        if r.analysis:
+            d.topic_path = r.analysis.topic_path
+            d.ai_category = r.analysis.ai_category
+        items.append(d)
+
     return Page[KnowledgeArticleSummary](
-        items=[KnowledgeArticleSummary.model_validate(r) for r in rows],
+        items=items,
         total=total,
         page=params.page,
         size=params.size,
@@ -201,6 +248,51 @@ async def search_articles(
                 )
         results.sort(key=lambda r: (-r.score, -r.article.updated_at.timestamp()))
         return results[:limit]
+
+
+@router.get(
+    "/tree",
+    response_model=list[TopicTreeNode],
+    summary="Дерево папок (topic_path) с количеством статей",
+)
+async def get_topic_tree(
+    db: DBSession,
+    _user: CurrentUser,
+) -> list[TopicTreeNode]:
+    """Возвращает иерархическое дерево тем на основе topic_path из AI-анализа."""
+    from sqlalchemy import func as sa_func
+
+    rows = (await db.execute(
+        select(ArticleAnalysis.topic_path, sa_func.count().label("cnt"))
+        .where(ArticleAnalysis.status == "DONE", ArticleAnalysis.topic_path.isnot(None))
+        .group_by(ArticleAnalysis.topic_path)
+        .order_by(ArticleAnalysis.topic_path)
+    )).all()
+
+    # Build tree from flat paths
+    root: dict[str, TopicTreeNode] = {}
+    for path, count in rows:
+        parts = path.strip("/").split("/")
+        full = ""
+        for i, part in enumerate(parts):
+            full = f"{full}/{part}" if full else f"/{part}"
+            if full not in root:
+                root[full] = TopicTreeNode(path=full, label=part, count=0)
+            root[full].count += count
+
+    # Nest children
+    tree: list[TopicTreeNode] = []
+    node_map: dict[str, TopicTreeNode] = {}
+    for full, node in sorted(root.items(), key=lambda x: (x[0].count("/"), x[0])):
+        node_map[full] = node
+        if "/" in full.lstrip("/"):
+            parent = full.rsplit("/", 1)[0]
+            if parent in node_map:
+                node_map[parent].children.append(node)
+        else:
+            tree.append(node)
+
+    return tree
 
 
 @router.get(
@@ -369,6 +461,75 @@ async def delete_article(
         before=before,
     )
     await db.commit()
+
+
+@router.get(
+    "/{article_id}/analysis",
+    response_model=ArticleAnalysisRead | None,
+    summary="Результат AI-анализа статьи",
+)
+async def get_article_analysis(
+    article_id: int, db: DBSession, _user: CurrentUser
+) -> ArticleAnalysisRead | None:
+    obj = await ArticleAnalyzer(db).get_analysis(article_id)
+    if obj is None:
+        return None
+    return ArticleAnalysisRead.model_validate(obj)
+
+
+@router.post(
+    "/{article_id}/analyze",
+    response_model=ArticleAnalysisTriggerResponse,
+    summary="Запустить AI-анализ статьи",
+)
+async def analyze_article(
+    article_id: int,
+    db: DBSession,
+    _user: CurrentUser,
+    background_tasks: BackgroundTasks,
+) -> ArticleAnalysisTriggerResponse:
+    article = await db.scalar(
+        select(KnowledgeArticle).where(KnowledgeArticle.id == article_id)
+    )
+    if article is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Статья не найдена"
+        )
+
+    analyzer = ArticleAnalyzer(db)
+    result = await analyzer.analyze(article_id)
+    await db.commit()
+    return ArticleAnalysisTriggerResponse(
+        message="Анализ завершён",
+        article_id=article_id,
+    )
+
+
+@router.post(
+    "/analyze/batch",
+    response_model=ArticleAnalysisBatchResponse,
+    summary="Запустить AI-анализ всех необработанных статей",
+)
+async def analyze_all_articles(
+    db: DBSession,
+    _user: CurrentUser,
+    background_tasks: BackgroundTasks,
+) -> ArticleAnalysisBatchResponse:
+    analyzer = ArticleAnalyzer(db)
+    unanalyzed = await analyzer.get_unanalyzed_ids(limit=50)
+    queued = 0
+    for aid in unanalyzed:
+        try:
+            await analyzer.analyze(aid)
+            queued += 1
+        except Exception:
+            logger.exception("Batch-анализ статьи %d провалился", aid)
+    await db.commit()
+    return ArticleAnalysisBatchResponse(
+        message="Пакетный анализ запущен",
+        queued=queued,
+        skipped=len(unanalyzed) - queued,
+    )
 
 
 @router.post(

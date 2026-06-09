@@ -8,8 +8,15 @@ from typing import Annotated
 
 from pydantic import Field
 
-from app.models.knowledge import ArticleCategory, AttachmentKind
+from app.models.knowledge import ArticleCategory, AttachmentKind, AnalysisStatus
 from app.schemas.common import APIModel
+
+
+class AnalysisStatusEnum(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    ERROR = "error"
 
 
 class ArticleCategoryEnum(str, Enum):
@@ -53,6 +60,7 @@ class KnowledgeArticleRead(APIModel):
     manufacturer_id: int | None = None
     chamber_model: str | None = None
     source_url: str | None = None
+    competitor_id: int | None = None
     is_published: bool
     version: int
     author_id: int | None = None
@@ -76,6 +84,9 @@ class KnowledgeArticleSummary(APIModel):
     updated_at: datetime
     published_at: datetime | None = None
     manufacturer_id: int | None = None
+    competitor_id: int | None = None
+    topic_path: str | None = None
+    ai_category: str | None = None
 
 
 class KnowledgeAttachmentCreate(APIModel):
@@ -98,6 +109,7 @@ class KnowledgeArticleCreate(APIModel):
     manufacturer_id: int | None = None
     chamber_model: str | None = None
     source_url: str | None = None
+    competitor_id: int | None = None
     is_published: bool = False
     attachments: list[KnowledgeAttachmentCreate] = []
 
@@ -138,9 +150,69 @@ class RAGQuery(APIModel):
     top_k: Annotated[int, Field(ge=1, le=20)] = 5
 
 
+class ProblemItem(APIModel):
+    title: str
+    description: str
+    severity: str  # high|medium|low
+
+
+class EquipmentItem(APIModel):
+    name: str
+    specs: dict[str, str] = {}
+
+
+class CompetitorMention(APIModel):
+    name: str
+    products: list[str] = []
+    pricing: str | None = None
+
+
+class ArticleAnalysisRead(APIModel):
+    id: int
+    article_id: int
+    products: list[str] = []
+    technologies: list[str] = []
+    problems: list[ProblemItem] = []
+    equipment: list[EquipmentItem] = []
+    key_insights: list[str] = []
+    competitor_mentions: list[CompetitorMention] = []
+    target_markets: list[str] = []
+    ai_category: str | None = None
+    topic_path: str | None = None
+    raw_response: dict | None = None
+    model_used: str | None = None
+    status: AnalysisStatusEnum
+    error: str | None = None
+    analyzed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ArticleAnalysisTriggerResponse(APIModel):
+    message: str
+    article_id: int
+    task_id: str | None = None
+
+
+class ArticleAnalysisBatchResponse(APIModel):
+    message: str
+    queued: int
+    skipped: int
+
+
+class TopicTreeNode(APIModel):
+    """Узел дерева тем."""
+
+    path: str
+    label: str
+    count: int
+    children: list[TopicTreeNode] = []
+
+
 __all__ = [
     "ArticleCategoryEnum",
     "AttachmentKindEnum",
+    "AnalysisStatusEnum",
     "KnowledgeAttachmentRead",
     "KnowledgeArticleRead",
     "KnowledgeArticleSummary",
@@ -150,4 +222,11 @@ __all__ = [
     "KnowledgeSearchResult",
     "RAGAnswer",
     "RAGQuery",
+    "ArticleAnalysisRead",
+    "ProblemItem",
+    "EquipmentItem",
+    "CompetitorMention",
+    "ArticleAnalysisTriggerResponse",
+    "ArticleAnalysisBatchResponse",
+    "TopicTreeNode",
 ]

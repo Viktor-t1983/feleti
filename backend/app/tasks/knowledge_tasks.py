@@ -18,6 +18,7 @@ from app.services.llm_extractor import LlmExtractor
 from app.services.youtube_transcriber import YouTubeTranscriber
 from app.services.pdf_parser import PdfParser
 from app.services.knowledge_saver import KnowledgeSaver
+from app.services.article_analyzer import ArticleAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -129,4 +130,23 @@ def parse_pdf(self, url: str, source_name: str = ""):
         return _run_async(_run())
     except Exception as exc:
         logger.exception(f"Task parse_pdf failed: {url}")
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def analyze_article(self, article_id: int):
+    """Запустить AI-анализ статьи и сохранить результат."""
+    logger.info(f"Task analyze_article: {article_id}")
+
+    async def _run():
+        async with AsyncSessionLocal() as session:
+            analyzer = ArticleAnalyzer(session)
+            await analyzer.analyze(article_id)
+            await session.commit()
+            return {"article_id": article_id}
+
+    try:
+        return _run_async(_run())
+    except Exception as exc:
+        logger.exception(f"Task analyze_article failed: {article_id}")
         raise self.retry(exc=exc)

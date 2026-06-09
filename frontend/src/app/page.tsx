@@ -284,7 +284,7 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold text-white mb-4">Быстрые действия</h2>
         <div className="flex flex-wrap gap-3">
           <QuickAction href="/recipes/new" icon={BookOpen} label="Новый рецепт" />
-          <QuickAction href="/batches/new" icon={Package} label="Запустить партию" />
+          <QuickAction href="/batches" icon={Package} label="Запустить партию" />
           <QuickAction href="/competitors" icon={TrendingUp} label="Анализ конкурентов" />
         </div>
       </motion.div>

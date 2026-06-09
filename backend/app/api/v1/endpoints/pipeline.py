@@ -17,7 +17,7 @@ from app.tasks.knowledge_tasks import (
 )
 from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem
 from app.models.knowledge import KnowledgeArticle
-from app.services.web_crawler import WebCrawler
+from app.services.web_crawler import COMPETITOR_CONFIG, WebCrawler
 from app.services.llm_extractor import LlmExtractor
 from app.services.knowledge_saver import KnowledgeSaver
 from app.schemas.knowledge import KnowledgeArticleRead
@@ -26,16 +26,7 @@ router = APIRouter()
 
 CELERY = get_celery()
 
-COMPETITOR_NAMES = ["ijiza", "mauting", "fessmann", "kerres", "agros"]
-
-# Конфигурация синхронного парсинга (без Celery)
-SYNC_COMPETITORS: dict[str, dict] = {
-    "ijiza": {"base_url": "https://ijiza.ru", "sitemap": "https://ijiza.ru/sitemap.xml", "max_pages": 30},
-    "mauting": {"base_url": "https://www.mauting.com", "sitemap": None, "max_pages": 20},
-    "fessmann": {"base_url": "https://www.fessmann.com", "sitemap": None, "max_pages": 20},
-    "kerres": {"base_url": "https://www.kerres.de", "sitemap": None, "max_pages": 20},
-    "agros": {"base_url": "https://agros.su", "sitemap": None, "max_pages": 20},
-}
+COMPETITOR_NAMES = list(COMPETITOR_CONFIG.keys())
 
 
 @router.post(
@@ -147,29 +138,22 @@ async def api_crawl_competitor_sync(
     _user: CurrentUser,
 ) -> dict:
     """Запустить парсинг конкурента непосредственно в запросе (без Celery)."""
-    if name not in SYNC_COMPETITORS:
+    if name not in COMPETITOR_NAMES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Неизвестный конкурент. Доступны: {', '.join(SYNC_COMPETITORS)}",
+            detail=f"Неизвестный конкурент. Доступны: {', '.join(COMPETITOR_NAMES)}",
         )
 
-    config = SYNC_COMPETITORS[name]
-    urls_to_crawl = [config["base_url"]]
     results_summary = {"articles": 0, "models": 0, "errors": 0, "pages_crawled": 0}
 
     crawler = WebCrawler()
 
     try:
-        if config.get("sitemap"):
-            sitemap_urls = await crawler.crawl_sitemap(config["sitemap"])
-            urls_to_crawl.extend(sitemap_urls)
-        urls_to_crawl = urls_to_crawl[: config.get("max_pages", 20)]
-
+        raw_results = await crawler.crawl_competitor(name)
         source_name = name.title()
         all_extracted = []
 
-        for url in urls_to_crawl:
-            raw = await crawler.crawl(url)
+        for raw in raw_results:
             results_summary["pages_crawled"] += 1
             if raw.errors:
                 results_summary["errors"] += 1

@@ -27,7 +27,7 @@ export function Header() {
               {user?.full_name || user?.username || "Гость"}
             </div>
             <div className="text-xs text-muted-foreground capitalize">
-              {user?.role || "operator"}
+              {user?.role || "оператор"}
             </div>
           </div>
         </div>

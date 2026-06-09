@@ -54,6 +54,9 @@ docs/research/*/youtube/audio/
 docs/research/*/youtube/transcripts/
 data/youtube/
 
+# Telegram session
+.telegram_session/
+
 # Misc
 *.bak
 *.tmp
