@@ -21,6 +21,7 @@ import {
   Shield,
   GitBranch,
   Radio,
+  Calculator,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
 
@@ -35,6 +36,7 @@ export function Sidebar() {
     { href: "/chambers", label: "Камеры", icon: Flame },
     { href: "/recipes", label: "Рецепты", icon: BookOpen },
     { href: "/products", label: "Продукты", icon: Tag },
+    { href: "/calculator", label: "Калькулятор", icon: Calculator },
     { href: "/ingredients", label: "Ингредиенты", icon: FlaskConical },
     { href: "/brines", label: "Рассолы", icon: Droplets },
     { href: "/batches", label: "Партии", icon: Package },

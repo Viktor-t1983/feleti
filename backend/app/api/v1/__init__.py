@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (  # noqa: E402, F401
     auth,
     batches,
     brines,
+    calc,
     chambers,
     chat,
     competitors,
@@ -37,6 +38,7 @@ api_router.include_router(chambers.router, prefix="/chambers", tags=["chambers"]
 api_router.include_router(products.router, prefix="/products", tags=["products"])
 api_router.include_router(ingredients.router, prefix="/ingredients", tags=["ingredients"])
 api_router.include_router(brines.router, prefix="/brines", tags=["brines"])
+api_router.include_router(calc.router, prefix="/calc", tags=["calc"])
 api_router.include_router(recipes.router, prefix="/recipes", tags=["recipes"])
 api_router.include_router(batches.router, prefix="/batches", tags=["batches"])
 api_router.include_router(telemetry.router, prefix="/chambers", tags=["telemetry"])
