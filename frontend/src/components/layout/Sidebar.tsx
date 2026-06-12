@@ -22,6 +22,7 @@ import {
   GitBranch,
   Radio,
   Calculator,
+  GitCompare,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
 
@@ -37,6 +38,7 @@ export function Sidebar() {
     { href: "/recipes", label: "Рецепты", icon: BookOpen },
     { href: "/products", label: "Продукты", icon: Tag },
     { href: "/calculator", label: "Калькулятор", icon: Calculator },
+    { href: "/matrix", label: "Совместимость", icon: GitCompare },
     { href: "/ingredients", label: "Ингредиенты", icon: FlaskConical },
     { href: "/brines", label: "Рассолы", icon: Droplets },
     { href: "/batches", label: "Партии", icon: Package },
