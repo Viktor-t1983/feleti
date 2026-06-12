@@ -21,6 +21,8 @@ from app.api.v1.endpoints import (  # noqa: E402, F401
     pipeline,
     products,
     recipes,
+    sources,
+    tech_card,
     telemetry,
     telegram,
     users,
@@ -45,3 +47,5 @@ api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(telegram.router, prefix="/telegram", tags=["telegram"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
+api_router.include_router(sources.router, prefix="/sources", tags=["sources"])
+api_router.include_router(tech_card.router, prefix="/tech-card", tags=["tech-card"])

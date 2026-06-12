@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, ForeignKey, Boolean, Enum as SAEnum, Text, Integer
+from sqlalchemy import String, ForeignKey, Boolean, Enum as SAEnum, Text, Integer, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -70,6 +70,7 @@ class KnowledgeArticle(Base):
     )
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    simhash_value: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, comment="SimHash fingerprint for de-duplication")
 
     author_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

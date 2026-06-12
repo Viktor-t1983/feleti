@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DBSession
 from app.models.audit import AuditAction
+from app.models.entity_link import EntityLink
 from app.models.knowledge import (
     ArticleAnalysis,
     ArticleCategory,
@@ -979,3 +980,51 @@ async def set_article_topics(
         db.add(ArticleTopic(article_id=article_id, topic_id=tid))
 
     await db.commit()
+
+
+@router.get(
+    "/{article_id}/graph",
+    response_model=list[dict],
+    summary="Граф знаний статьи — связанные сущности",
+)
+async def get_article_graph(
+    article_id: int,
+    db: DBSession,
+    _user: CurrentUser,
+) -> list[dict]:
+    """Вернуть все EntityLink для статьи + резолвить имена target-сущностей."""
+    rows = (
+        await db.execute(
+            select(EntityLink).where(
+                EntityLink.source_type == "article",
+                EntityLink.source_id == article_id,
+            )
+        )
+    ).scalars().all()
+
+    result = []
+    for link in rows:
+        target_name = None
+        if link.target_type == "product":
+            from app.models.product import Product
+            obj = await db.get(Product, link.target_id)
+            target_name = obj.name if obj else None
+        elif link.target_type == "competitor":
+            from app.models.competitor import Competitor
+            obj = await db.get(Competitor, link.target_id)
+            target_name = obj.name if obj else None
+        elif link.target_type == "manufacturer":
+            from app.models.manufacturer import Manufacturer
+            obj = await db.get(Manufacturer, link.target_id)
+            target_name = obj.name if obj else None
+
+        result.append({
+            "id": link.id,
+            "target_type": link.target_type,
+            "target_id": link.target_id,
+            "target_name": target_name,
+            "relation": link.relation,
+            "created_at": link.created_at.isoformat(),
+        })
+
+    return result

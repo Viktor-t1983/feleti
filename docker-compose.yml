@@ -122,6 +122,22 @@ services:
       - ./backend:/app
     command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2
 
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: feleti_celery_beat
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.core.celery_app beat --loglevel=info --pidfile=/tmp/celerybeat.pid
+
   adminer:
     image: adminer:4.8.1
     container_name: feleti_adminer

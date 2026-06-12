@@ -150,3 +150,82 @@ def analyze_article(self, article_id: int):
     except Exception as exc:
         logger.exception(f"Task analyze_article failed: {article_id}")
         raise self.retry(exc=exc)
+
+
+DEFAULT_COLLECT_QUERIES = [
+    "копчение рыбы оборудование технологии",
+    "копчение мяса технологии рецепты",
+    "коптильные камеры промышленные оборудование",
+    "проблемы копчения горечь плесень решения",
+    "посол рыбы перед копчением рецепты",
+]
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=300)
+def collect_knowledge(self, query: str = "", topic_ids: list[int] | None = None):
+    """Сбор знаний по запросу (плановый или ручной)."""
+    from app.services.knowledge_collector import KnowledgeCollector
+
+    logger.info(f"Task collect_knowledge: query='{query}' topic_ids={topic_ids}")
+
+    async def _run():
+        collector = KnowledgeCollector()
+        job = await collector.collect(
+            query=query,
+            source_types=[SourceType.WEB, SourceType.YOUTUBE],
+            topic_ids=topic_ids,
+            max_results=15,
+        )
+        while job.status in ("pending", "running"):
+            await asyncio.sleep(2)
+        return {
+            "job_id": job.id,
+            "status": job.status.value,
+            "total": job.total,
+            "processed": job.processed,
+            "created": len(job.created),
+            "skipped": job.skipped,
+            "errors": job.errors[:5],
+        }
+
+    try:
+        return _run_async(_run())
+    except Exception as exc:
+        logger.exception("Task collect_knowledge failed")
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=600)
+def scheduled_collect(self):
+    """Плановый сбор знаний — выполняет все DEFAULT_COLLECT_QUERIES."""
+    from app.services.knowledge_collector import KnowledgeCollector
+
+    logger.info("Task scheduled_collect: starting scheduled knowledge collection")
+
+    async def _run():
+        results = []
+        for q in DEFAULT_COLLECT_QUERIES:
+            try:
+                collector = KnowledgeCollector()
+                job = await collector.collect(
+                    query=q,
+                    source_types=[SourceType.WEB, SourceType.YOUTUBE],
+                    max_results=10,
+                )
+                while job.status in ("pending", "running"):
+                    await asyncio.sleep(2)
+                results.append({
+                    "query": q,
+                    "status": job.status.value,
+                    "created": len(job.created),
+                    "skipped": job.skipped,
+                })
+            except Exception as exc:
+                results.append({"query": q, "error": str(exc)})
+        return {"queries": len(results), "results": results}
+
+    try:
+        return _run_async(_run())
+    except Exception as exc:
+        logger.exception("Task scheduled_collect failed")
+        raise self.retry(exc=exc)

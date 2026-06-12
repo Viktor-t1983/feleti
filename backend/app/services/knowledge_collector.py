@@ -31,8 +31,54 @@ from app.services.knowledge_pipeline import (
 from app.services.web_crawler import WebCrawler
 from app.services.llm_extractor import LlmExtractor
 from app.services.article_analyzer import ArticleAnalyzer
+from app.services import simhash as sh
 
 logger = logging.getLogger(__name__)
+
+
+# Репутация источников (fallback, если БД недоступна)
+FALLBACK_SOURCE_REPUTATION: dict[str, int] = {
+    "vseokopchenii.ru": 3,
+    "smokehouse.ru": 3,
+    "vniro.ru": 3,
+    "vniimp.ru": 3,
+    "feleti.ru": 3,
+    "eda.ru": 2,
+    "povarenok.ru": 2,
+    "meatclub.ru": 2,
+    "fishnews.ru": 2,
+    "youtube.com": 1,
+    "youtu.be": 1,
+    "habr.com": 1,
+    "pikabu.ru": 1,
+    "ozon.ru": 1,
+    "wildberries.ru": 1,
+    "market.yandex.ru": 1,
+}
+
+MIN_CONTENT_LENGTH: int = 200
+
+
+async def _load_reputation_from_db() -> tuple[dict[str, int], set[str]]:
+    """Load source reputation + blacklist from database."""
+    try:
+        from app.models.source_reputation import SourceReputation
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(SourceReputation).order_by(SourceReputation.id)
+            )
+            rows = result.scalars().all()
+            reputation: dict[str, int] = {}
+            blacklist: set[str] = set()
+            for r in rows:
+                reputation[r.domain] = r.score
+                if r.is_blacklisted:
+                    blacklist.add(r.domain)
+            if reputation:
+                return reputation, blacklist
+    except Exception as exc:
+        logger.warning("Failed to load source reputation from DB, using fallback: %s", exc)
+    return dict(FALLBACK_SOURCE_REPUTATION), set()
 
 
 class CollectionStatus(str, Enum):
@@ -97,6 +143,27 @@ class KnowledgeCollector:
         asyncio.create_task(self._run(job))
         return job
 
+    def quality_gate(self, raw: CrawlResult, url: str) -> tuple[bool, str]:
+        """Quality gate: проверяет качество CrawlResult перед экстракцией."""
+        from urllib.parse import urlparse
+        text_len = len(raw.raw_text.strip())
+        if text_len < MIN_CONTENT_LENGTH:
+            return False, f"Слишком короткий текст ({text_len} < {MIN_CONTENT_LENGTH})"
+        if raw.errors:
+            return False, f"Ошибки краулера: {'; '.join(raw.errors[:3])}"
+        domain = urlparse(url).netloc.lower()
+        for bd in BLACKLISTED_DOMAINS:
+            if bd in domain:
+                return False, f"Домен в чёрном списке: {domain}"
+        reputation = 0
+        for d, score in SOURCE_REPUTATION.items():
+            if d in domain:
+                reputation = score
+                break
+        if reputation == 0 and domain:
+            logger.info("Неизвестный домен (score=0): %s", domain)
+        return True, ""
+
     async def _run(self, job: CollectionJob) -> None:
         """Выполнить сбор (фоновый таск)."""
         job.status = CollectionStatus.RUNNING
@@ -117,22 +184,25 @@ class KnowledgeCollector:
                 self._notify(job)
                 return
 
+            await self._ensure_reputation()
             sem = asyncio.Semaphore(3)
 
             async def process(source_type: SourceType, url: str) -> None:
                 async with sem:
                     try:
                         raw = await crawler.crawl(url, source_type)
-                        if not raw.errors and len(raw.raw_text) > 100:
-                            extracted_list = await extractor.extract(raw)
-                            for extracted in extracted_list[:3]:
-                                article_id = await self._save_article(extracted, job, analyzer)
-                                if article_id:
-                                    job.created.append(article_id)
-                                else:
-                                    job.skipped += 1
-                        else:
+                        proceed, reason = self.quality_gate(raw, url)
+                        if not proceed:
+                            logger.info("Quality gate rejected %s: %s", url, reason)
                             job.skipped += 1
+                            return
+                        extracted_list = await extractor.extract(raw)
+                        for extracted in extracted_list[:3]:
+                            article_id = await self._save_article(extracted, job, analyzer)
+                            if article_id:
+                                job.created.append(article_id)
+                            else:
+                                job.skipped += 1
                     except Exception as e:
                         job.errors.append(f"{url}: {e}")
                         job.skipped += 1
@@ -255,6 +325,19 @@ class KnowledgeCollector:
                         logger.info("Дубликат (URL): %s", extracted.source_url)
                         return None
 
+                # SimHash de-duplication
+                body_for_hash = (extracted.title + " " + extracted.body_md) if extracted.excerpt is None else (extracted.title + " " + extracted.excerpt + " " + extracted.body_md)
+                fp = sh.compute(body_for_hash)
+                if fp != 0:
+                    existing_hashes = await db.scalars(
+                        select(KnowledgeArticle.simhash_value).where(
+                            KnowledgeArticle.simhash_value.isnot(None)
+                        ).limit(1000)
+                    )
+                    if sh.is_duplicate(fp, existing_hashes.all()):
+                        logger.info("Дубликат (SimHash): %s", extracted.title)
+                        return None
+
                 article = KnowledgeArticle(
                     title=extracted.title[:500],
                     slug=self._slugify(extracted.title)[:500],
@@ -264,6 +347,7 @@ class KnowledgeCollector:
                     tags=extracted.tags,
                     source_url=extracted.source_url or "",
                     is_published=True,
+                    simhash_value=fp,
                 )
                 db.add(article)
                 await db.flush()

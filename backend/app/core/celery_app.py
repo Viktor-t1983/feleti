@@ -1,6 +1,7 @@
 """Celery app — асинхронные задачи (парсинг, транскрибация, экстракция)."""
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import settings
 
@@ -21,6 +22,13 @@ celery_app.conf.update(
     task_time_limit=3600,
     task_soft_time_limit=3000,
     worker_max_tasks_per_child=10,
+    beat_schedule={
+        "scheduled-collect-every-6-hours": {
+            "task": "app.tasks.knowledge_tasks.scheduled_collect",
+            "schedule": crontab(hour="*/6", minute=0),
+            "options": {"queue": "default"},
+        },
+    },
 )
 
 

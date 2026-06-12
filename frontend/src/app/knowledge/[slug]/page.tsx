@@ -7,6 +7,7 @@ import {
   Sparkles, Loader2, AlertTriangle, CheckCircle, XCircle,
   Wrench, Lightbulb, Target, Globe, FileText, Package,
   FlaskConical, Bug, ChevronDown, ChevronUp, Layers,
+  Share2, Building2, Users,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
@@ -60,6 +61,24 @@ async function fetchAnalysis(articleId: number): Promise<ArticleAnalysis | null>
   }
 }
 
+interface EntityLink {
+  id: number;
+  target_type: string;
+  target_id: number;
+  target_name: string | null;
+  relation: string;
+  created_at: string;
+}
+
+async function fetchGraph(articleId: number): Promise<EntityLink[]> {
+  try {
+    const { data } = await apiClient.get(`/knowledge/${articleId}/graph`);
+    return data;
+  } catch {
+    return [];
+  }
+}
+
 async function triggerAnalysis(articleId: number): Promise<void> {
   await apiClient.post(`/knowledge/${articleId}/analyze`);
 }
@@ -90,6 +109,7 @@ export default function KnowledgeDetailPage() {
   const slug = params.slug as string;
   const queryClient = useQueryClient();
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
 
   const { data: article, isLoading, error, refetch } = useQuery({
     queryKey: ["knowledge", slug],
@@ -97,9 +117,15 @@ export default function KnowledgeDetailPage() {
   });
 
   const { data: analysis, isLoading: analysisLoading } = useQuery({
-    queryKey: ["knowledge", slug, "analysis"],
-    queryFn: () => article ? fetchAnalysis(article.id) : null,
-    enabled: !!article,
+    queryKey: ["knowledge-analysis", article?.id],
+    queryFn: () => fetchAnalysis(article!.id),
+    enabled: !!article?.id,
+  });
+
+  const { data: graphLinks = [] } = useQuery({
+    queryKey: ["knowledge-graph", article?.id],
+    queryFn: () => fetchGraph(article!.id),
+    enabled: !!article?.id,
   });
 
   const { data: allTopics = [] } = useQuery({
@@ -460,6 +486,57 @@ export default function KnowledgeDetailPage() {
                   </p>
                 )}
               </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Knowledge Graph */}
+      <div className="border border-white/10 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setGraphOpen(!graphOpen)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-white/5 hover:bg-white/10 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Share2 className="h-4 w-4 text-feleti-gold" />
+            <span className="text-sm font-medium text-white">Граф знаний</span>
+            {graphLinks.length > 0 && (
+              <span className="text-xs bg-feleti-gold/15 text-feleti-gold px-1.5 py-0.5 rounded">
+                {graphLinks.length}
+              </span>
+            )}
+          </div>
+          {graphOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {graphOpen && (
+          <div className="p-3 space-y-2">
+            {graphLinks.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Связанные сущности не найдены</p>
+            ) : (
+              graphLinks.map((link) => (
+                <div key={link.id} className="flex items-center gap-3 p-2 bg-white/5 rounded text-sm">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                    {link.target_type === "product" ? (
+                      <Package className="h-4 w-4 text-blue-400" />
+                    ) : link.target_type === "competitor" ? (
+                      <Users className="h-4 w-4 text-red-400" />
+                    ) : (
+                      <Building2 className="h-4 w-4 text-green-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white truncate">
+                      {link.target_name || `${link.target_type} #${link.target_id}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize">{link.target_type}</p>
+                  </div>
+                  {link.relation && (
+                    <span className="text-xs bg-white/5 text-muted-foreground px-1.5 py-0.5 rounded flex-shrink-0">
+                      {link.relation}
+                    </span>
+                  )}
+                </div>
+              ))
             )}
           </div>
         )}

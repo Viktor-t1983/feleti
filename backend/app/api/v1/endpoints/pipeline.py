@@ -14,6 +14,9 @@ from app.tasks.knowledge_tasks import (
     crawl_competitor,
     transcribe_youtube,
     parse_pdf,
+    collect_knowledge,
+    scheduled_collect,
+    DEFAULT_COLLECT_QUERIES,
 )
 from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem
 from app.models.knowledge import KnowledgeArticle
@@ -249,4 +252,52 @@ async def get_pipeline_results(
             "articles": len(articles),
             "models": len(models),
         },
+    }
+
+
+@router.post(
+    "/collect",
+    summary="Запустить ручной сбор знаний (Celery задача)",
+)
+async def api_collect_knowledge(
+    _user: CurrentUser,
+    query: Annotated[str, Query(min_length=3)] = "копчение рыбы оборудование",
+) -> dict:
+    """Запустить сбор знаний по запросу в фоне."""
+    task = collect_knowledge.delay(query=query)
+    return {"task_id": task.id, "query": query, "status": "queued"}
+
+
+@router.post(
+    "/collect/scheduled",
+    summary="Запустить плановый сбор знаний (все запросы)",
+)
+async def api_scheduled_collect(
+    _user: CurrentUser,
+) -> dict:
+    """Запустить scheduled_collect — пройти по всем DEFAULT_COLLECT_QUERIES."""
+    task = scheduled_collect.delay()
+    return {"task_id": task.id, "status": "queued"}
+
+
+@router.get(
+    "/collect/schedule",
+    summary="Информация о плановом сборе",
+)
+async def api_schedule_info(
+    _user: CurrentUser,
+) -> dict:
+    """Вернуть информацию о текущем расписании."""
+    from app.core.celery_app import celery_app
+    bs = celery_app.conf.beat_schedule
+    schedule_info = []
+    for name, cfg in bs.items():
+        schedule_info.append({
+            "name": name,
+            "task": cfg.get("task"),
+            "schedule": str(cfg.get("schedule")),
+        })
+    return {
+        "default_queries": DEFAULT_COLLECT_QUERIES,
+        "beat_schedule": schedule_info,
     }

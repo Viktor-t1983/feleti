@@ -14,6 +14,7 @@ import {
   ChefHat,
   Beaker,
   Pencil,
+  FileDown,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import Link from "next/link";
@@ -155,6 +156,14 @@ export default function RecipeDetailPage() {
               <Pencil className="h-4 w-4" />
               Редактировать
             </Link>
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tech-card/recipes/${recipe.id}/tech-card`}
+              download
+              className="inline-flex items-center gap-1.5 rounded-xl border border-feleti-gold/30 bg-feleti-gold/5 px-3.5 py-2 text-sm text-feleti-gold hover:bg-feleti-gold/10 transition-colors"
+            >
+              <FileDown className="h-4 w-4" />
+              Скачать техкарту
+            </a>
           </div>
         </div>
       </div>

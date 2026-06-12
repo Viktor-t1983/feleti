@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge import ArticleAnalysis, AnalysisStatus, KnowledgeArticle
 from app.services.ai_service import AIService
+from app.services.entity_graph import build_entity_links
 
 logger = logging.getLogger("article_analyzer")
 
@@ -88,6 +89,14 @@ class ArticleAnalyzer:
             analysis.error = str(exc)
 
         await self.db.flush()
+
+        # Build entity graph in background
+        if analysis.status == AnalysisStatus.DONE:
+            try:
+                await build_entity_links(article_id)
+            except Exception:
+                logger.exception("Entity graph build failed for article %d", article_id)
+
         return analysis
 
     async def get_analysis(self, article_id: int) -> ArticleAnalysis | None:

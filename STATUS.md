@@ -41,8 +41,6 @@
 - [x] `audit_logs` — аудит действий
 - [x] `chat_sessions` + `chat_messages` — история диалогов
 - [ ] `entity_links` — Knowledge Graph (связи между сущностями)
-- [ ] `source_reputation` — репутация источников
-- [ ] `collection_jobs` — задания на сбор знаний
 
 ---
 
@@ -126,7 +124,12 @@
 - [x] `llm_extractor.py` — извлечение структуры
 - [x] `ai_service.py` — AI-сервис (Ollama/OpenAI)
 - [x] `knowledge_collector.py` — агент-коллектор (единый оркестратор)
-- [ ] Scheduled сбор (APScheduler / Celery beat)
+- [x] Scheduled сбор (Celery Beat каждые 6 часов: `scheduled_collect` — 5 предустановленных запросов)
+  - [x] `collect_knowledge` — Celery-задача для сбора по одному запросу
+  - [x] API `POST /pipeline/collect` — ручной запуск
+  - [x] API `POST /pipeline/collect/scheduled` — запуск всех запросов
+  - [x] API `GET /pipeline/collect/schedule` — информация о расписании
+  - [x] Celery Beat контейнер в docker-compose
 
 ---
 
@@ -164,24 +167,20 @@
 - [x] `POST /ai/collect` — запуск сбора
 - [x] `GET /ai/collect/{id}/progress` — SSE прогресс сбора
 - [x] `GET /ai/collect/{id}` — статус задачи
-- [ ] De-duplication (SimHash)
-- [ ] Quality gate
-- [ ] Определение источников по запросу (LLM)
-- [ ] Менеджер источников (UI)
-
-### Фаза 3 — Коллектор знаний
-- [ ] `knowledge_collector.py` — агент-оркестратор
-- [ ] `POST /ai/collect` — запуск сбора
-- [ ] SSE progress
-- [ ] De-duplication (SimHash)
-- [ ] Quality gate
-- [ ] Определение источников по запросу (LLM)
-- [ ] Менеджер источников (UI)
+- [x] LLM-определение источников (AI сам решает какие сайты искать)
+- [x] Quality gate + репутация источников (длина текста, чёрный список, репутация домена в `SOURCE_REPUTATION` dict)
+- [x] De-duplication (SimHash) — 64-bit fingerprint, Hamming distance threshold 3
+- [x] Менеджер источников (UI) — `/knowledge/sources`, таблица с CRUD, фильтрация, чёрный список, репутация из БД
 
 ### Фаза 4 — Платформа знаний
-- [ ] Knowledge Graph (entity_links)
-- [ ] Scheduled сбор
-- [ ] Экспорт техкарт (PDF)
+- [x] Knowledge Graph (entity_links) — автоматическое построение связей статей с продуктами, конкурентами и производителями при AI-анализе
+  - [x] API GET /knowledge/{id}/graph — резолв имён target-сущностей
+  - [x] UI «Граф знаний» на странице статьи
+- [x] Scheduled сбор
+- [x] Экспорт техкарт (PDF) — reportlab, DejaVu Sans, русский шрифт
+  - [x] `app/services/tech_card_pdf.py` — генератор PDF: заголовок, мета, таблица ингредиентов, программа копчения, расчётные характеристики, условия хранения
+  - [x] `GET /api/v1/tech-card/recipes/{id}/tech-card` — API endpoint
+  - [x] Кнопка «Скачать техкарту» на странице рецепта (UI)
 
 ### Фаза 5 — Интеллект
 - [ ] Предиктивная аналитика
