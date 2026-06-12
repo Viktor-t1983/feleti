@@ -419,9 +419,9 @@ GET /api/v1/ai/collect/{id}/progress
 
 1. **Репутация источников** — таблица `source_reputation` с доменами и уровнем доверия
 2. **История диалогов** — таблица `chat_sessions` + `chat_messages` для сохранения контекста
-3. **Knowledge Graph** — таблица `entity_links` (article_id, entity_type, entity_id, relation_type)
+3. **Knowledge Graph** — таблица `entity_links` (article_id → product/competitor/manufacturer) ✓
 4. **Photo-диагностика** — нейросеть для оценки продукта по фото (пересол/недосол/горечь)
-5. **Scheduled сбор** — APScheduler для периодического краулинга
-6. **Матрица совместимости** — recommendations ML на основе истории партий + рецептов
+5. **Scheduled сбор** — Celery Beat каждые 6 часов ✓
+6. **Экспорт техкарт (PDF)** — reportlab, DejaVu Sans, русский шрифт ✓
 7. **Telethon сессия** — для telegram_parser нужно хранить сессию авторизации
 8. **Миграция topic_path** — перенос старых analysis.topic_path в article_topics
