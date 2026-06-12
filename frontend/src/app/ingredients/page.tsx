@@ -1,10 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Search, Package, AlertTriangle } from "lucide-react";
+import { Search, Package, AlertTriangle, Plus } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
+import Link from "next/link";
 
 const TYPE_TABS = [
   { id: "all", label: "Все" },
@@ -54,7 +57,7 @@ export default function IngredientsPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["ingredients", typeFilter, search],
     queryFn: async () => {
       const params = new URLSearchParams({ size: "200" });
@@ -66,6 +69,8 @@ export default function IngredientsPage() {
   });
 
   const ingredients = data?.items || [];
+
+  if (error && !isLoading) return <ErrorState message="Не удалось загрузить список ингредиентов" onRetry={() => refetch()} />;
 
   if (isLoading) return <IngredientsSkeleton />;
 
@@ -79,6 +84,13 @@ export default function IngredientsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href="/ingredients/new"
+          className="inline-flex items-center gap-2 rounded-xl bg-feleti-gold px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-feleti-gold/90"
+        >
+          <Plus className="h-4 w-4" />
+          Новый
+        </Link>
         <div className="flex gap-1 rounded-xl border border-white/5 bg-white/[0.02] p-1 overflow-x-auto max-w-full">
           {TYPE_TABS.map((tab) => (
             <button
@@ -141,12 +153,14 @@ export default function IngredientsPage() {
 }
 
 function IngredientRow({ ingredient, index }: { ingredient: IngredientRead; index: number }) {
+  const router = useRouter();
   return (
     <motion.tr
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
-      className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.03] transition-colors"
+      className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.03] transition-colors cursor-pointer"
+      onClick={() => router.push(`/ingredients/${ingredient.slug}`)}
     >
       <td className="py-3 px-4 text-white font-medium">{ingredient.name}</td>
       <td className="py-3 px-4 text-muted-foreground capitalize">{ingredient.type}</td>

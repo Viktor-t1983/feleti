@@ -99,7 +99,7 @@ def test_delete_user(client, auth_headers):
     uid = created["id"]
 
     resp = client.delete(f"/users/{uid}", headers=auth_headers)
-    assert resp.status_code == 200
+    assert resp.status_code == 204
 
     # Verify deleted
     resp = client.get(f"/users/{uid}", headers=auth_headers)

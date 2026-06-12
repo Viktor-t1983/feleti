@@ -14,10 +14,10 @@ interface GridControlsProps {
   onChangeGroupBy: (v: boolean) => void;
   search: string;
   onChangeSearch: (v: string) => void;
-  segment: string;
-  onChangeSegment: (v: string) => void;
-  mainOnly: boolean;
-  onChangeMainOnly: (v: boolean) => void;
+  segment?: string;
+  onChangeSegment?: (v: string) => void;
+  mainOnly?: boolean;
+  onChangeMainOnly?: (v: boolean) => void;
 }
 
 const COLUMNS: ColumnCount[] = [2, 3, 4, 6];
@@ -119,32 +119,36 @@ export function GridControls({
       </div>
 
       {/* Segment filter */}
-      <select
-        value={segment}
-        onChange={(e) => onChangeSegment(e.target.value)}
-        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white focus:border-feleti-gold/50 focus:outline-none"
-      >
-        <option value="all">Все сегменты</option>
-        <option value="horeca">Horeca</option>
-        <option value="profi">Profi</option>
-        <option value="industrial">Industrial</option>
-        <option value="premium">Premium</option>
-        <option value="middle">Middle</option>
-        <option value="budget">Budget</option>
-      </select>
+      {segment !== undefined && onChangeSegment && (
+        <select
+          value={segment}
+          onChange={(e) => onChangeSegment(e.target.value)}
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white focus:border-feleti-gold/50 focus:outline-none"
+        >
+          <option value="all">Все сегменты</option>
+          <option value="horeca">Horeca</option>
+          <option value="profi">Profi</option>
+          <option value="industrial">Industrial</option>
+          <option value="premium">Premium</option>
+          <option value="middle">Middle</option>
+          <option value="budget">Budget</option>
+        </select>
+      )}
 
       {/* Main only toggle */}
-      <button
-        onClick={() => onChangeMainOnly(!mainOnly)}
-        className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
-          mainOnly
-            ? "border-feleti-gold/40 bg-feleti-gold/10 text-feleti-gold"
-            : "border-white/10 bg-white/5 text-muted-foreground hover:text-white"
-        }`}
-      >
-        <Star className={`h-3.5 w-3.5 ${mainOnly ? "fill-feleti-gold" : ""}`} />
-        Главные
-      </button>
+      {mainOnly !== undefined && onChangeMainOnly && (
+        <button
+          onClick={() => onChangeMainOnly(!mainOnly)}
+          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+            mainOnly
+              ? "border-feleti-gold/40 bg-feleti-gold/10 text-feleti-gold"
+              : "border-white/10 bg-white/5 text-muted-foreground hover:text-white"
+          }`}
+        >
+          <Star className={`h-3.5 w-3.5 ${mainOnly ? "fill-feleti-gold" : ""}`} />
+          Главные
+        </button>
+      )}
     </div>
   );
 }

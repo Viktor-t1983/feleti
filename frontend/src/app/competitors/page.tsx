@@ -10,29 +10,11 @@ import { apiClient } from "@/lib/api/client";
 import { CompetitorCard } from "@/components/competitors/CompetitorCard";
 import { CompetitorCardGrid } from "@/components/competitors/CompetitorCardGrid";
 import { CompetitorModal } from "@/components/competitors/CompetitorModal";
-import { GridControls } from "@/components/competitors/GridControls";
+import { GridControls } from "@/components/shared/GridControls";
+import type { ViewMode, ColumnCount } from "@/components/shared/GridControls";
 import type { Competitor } from "@/components/competitors/CompetitorCard";
-import type { ViewMode, ColumnCount } from "@/components/competitors/GridControls";
-
-const COUNTRY_FLAGS: Record<string, string> = {
-  "Германия": "🇩🇪",
-  "США": "🇺🇸",
-  "Чехия": "🇨🇿",
-  "Австрия": "🇦🇹",
-  "Россия": "🇷🇺",
-  "Китай": "🇨🇳",
-  "Словения": "🇸🇮",
-};
-
-const COUNTRY_ORDER = [
-  "Россия",
-  "Германия",
-  "Китай",
-  "США",
-  "Чехия",
-  "Австрия",
-  "Словения",
-];
+import { ErrorState } from "@/components/shared/ErrorState";
+import { COUNTRY_FLAGS, COUNTRY_ORDER } from "@/lib/countries";
 
 interface CompetitorsResponse {
   items: Competitor[];
@@ -67,7 +49,7 @@ export default function CompetitorsPage() {
     }
   }, [isAuthenticated, isLoadingAuth, router]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["competitors"],
     queryFn: fetchCompetitors,
     enabled: isAuthenticated,
@@ -172,7 +154,9 @@ export default function CompetitorsPage() {
       {/* Content */}
       <section className="px-6 pb-24">
         <div className="mx-auto max-w-7xl">
-          {isLoading ? (
+          {error && !isLoading ? (
+            <ErrorState message="Не удалось загрузить список конкурентов" onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-feleti-gold" />
             </div>

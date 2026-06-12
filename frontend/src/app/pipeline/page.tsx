@@ -13,6 +13,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 
 interface SyncResult {
@@ -95,7 +96,7 @@ export default function PipelinePage() {
   const [crawlingId, setCrawlingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: results, isLoading } = useQuery({
+  const { data: results, isLoading, error, refetch } = useQuery({
     queryKey: ["pipeline-results"],
     queryFn: async () => {
       const { data } = await apiClient.get("/pipeline/results");
@@ -118,6 +119,10 @@ export default function PipelinePage() {
       setCrawlingId(null);
     },
   });
+
+  if (error && !isLoading) {
+    return <ErrorState message="Не удалось загрузить данные пайплайна" onRetry={() => refetch()} />;
+  }
 
   return (
     <div className="space-y-8">

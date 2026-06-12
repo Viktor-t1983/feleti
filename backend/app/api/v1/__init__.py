@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (  # noqa: E402, F401
     batches,
     brines,
     chambers,
+    chat,
     competitors,
     dashboard,
     health,
@@ -43,3 +44,4 @@ api_router.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"]
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(telegram.router, prefix="/telegram", tags=["telegram"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(chat.router, prefix="/chat", tags=["chat"])

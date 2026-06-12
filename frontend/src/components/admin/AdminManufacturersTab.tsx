@@ -20,6 +20,7 @@ import {
   deleteManufacturer,
 } from "@/lib/api/admin-manufacturers";
 import type { Manufacturer, ManufacturerCreate } from "@/lib/api/admin-manufacturers";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 interface EditForm {
   name: string;
@@ -56,6 +57,7 @@ export function AdminManufacturersTab() {
   const [form, setForm] = useState<EditForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Manufacturer | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,12 +141,17 @@ export function AdminManufacturersTab() {
   };
 
   const handleDelete = async (m: Manufacturer) => {
-    if (!confirm(`Удалить производителя ${m.name}?`)) return;
+    setDeleteTarget(m);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteManufacturer(m.id);
+      await deleteManufacturer(deleteTarget.id);
       await load();
+      setDeleteTarget(null);
     } catch {
-      /* ignore */
+      setDeleteTarget(null);
     }
   };
 
@@ -431,6 +438,20 @@ export function AdminManufacturersTab() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Удаление производителя"
+        message={
+          deleteTarget
+            ? `Вы уверены, что хотите удалить производителя ${deleteTarget.name}?`
+            : ""
+        }
+        confirmLabel="Удалить"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -109,8 +110,16 @@ export default function BatchDetailPage() {
       await apiClient.post(`/batches/${batchId}/${action}`);
       await queryClient.invalidateQueries({ queryKey: ["batch", batchId] });
       await queryClient.invalidateQueries({ queryKey: ["batches"] });
-    } catch (err) {
-      console.error(`Action ${action} failed:`, err);
+      const labels: Record<string, string> = {
+        start: "запущена",
+        pause: "поставлена на паузу",
+        resume: "возобновлена",
+        complete: "завершена",
+        cancel: "отменена",
+      };
+      toast.success(`Партия ${labels[action] || action}`);
+    } catch {
+      toast.error(`Ошибка при выполнении действия: ${action}`);
     } finally {
       setActionLoading(null);
     }

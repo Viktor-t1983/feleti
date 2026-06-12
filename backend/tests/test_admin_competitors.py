@@ -82,7 +82,7 @@ def test_delete_competitor(client, auth_headers):
     cid = created["id"]
 
     resp = client.delete(f"/competitors/{cid}", headers=auth_headers)
-    assert resp.status_code == 200
+    assert resp.status_code == 204
 
 
 def test_competitor_404(client, auth_headers):

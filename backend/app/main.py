@@ -1,9 +1,10 @@
 """FastAPI application entry point."""
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import ORJSONResponse, JSONResponse
 
 from app.api.v1 import api_router
 from app.core.config import settings
@@ -42,3 +43,18 @@ app.add_middleware(
 
 # --- Роутеры (включая /api/v1/health внутри api_router) ---
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+
+# --- Преобразование validation errors в строку ---
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    messages = []
+    for err in exc.errors():
+        loc = " → ".join(str(l) for l in err.get("loc", []) if l not in ("body", "query", "path"))
+        msg = err.get("msg", "")
+        if loc:
+            messages.append(f"{loc}: {msg}")
+        else:
+            messages.append(msg)
+    detail = "; ".join(messages) if messages else "Ошибка валидации"
+    return JSONResponse(status_code=422, content={"detail": detail})

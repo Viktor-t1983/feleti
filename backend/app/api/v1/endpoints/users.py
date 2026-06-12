@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import CurrentAdmin, DBSession
 from app.core.security import hash_password
 from app.models.audit import AuditAction
 from app.models.user import User
-from app.schemas.common import Page
+from app.schemas.common import Page, PageParams
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.services import audit
+from app.services.pagination import paginate
 
 router = APIRouter()
 
@@ -21,22 +24,10 @@ router = APIRouter()
 async def list_users(
     db: DBSession,
     _admin: CurrentAdmin,
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=200),
+    params: Annotated[PageParams, Query()] = PageParams(),
 ) -> Page[UserRead]:
     stmt = select(User)
-    count_stmt = select(func.count()).select_from(User)
-    total = await db.scalar(count_stmt) or 0
-    stmt = stmt.order_by(User.id.asc()).offset((page - 1) * size).limit(size)
-    rows = (await db.scalars(stmt)).all()
-    pages = (total + size - 1) // size if total else 0
-    return Page[UserRead](
-        items=[UserRead.model_validate(r) for r in rows],
-        total=total,
-        page=page,
-        size=size,
-        pages=pages,
-    )
+    return await paginate(db, stmt, params, UserRead, order_by=User.id.asc())
 
 
 @router.get("/{user_id}", response_model=UserRead, summary="Пользователь по ID")
@@ -94,7 +85,7 @@ async def update_user(
     return UserRead.model_validate(obj)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_200_OK, summary="Удалить пользователя")
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None, summary="Удалить пользователя")
 async def delete_user(user_id: int, db: DBSession, admin: CurrentAdmin) -> None:
     obj = await db.scalar(select(User).where(User.id == user_id))
     if obj is None:

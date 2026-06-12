@@ -6,12 +6,14 @@ import {
   ArrowLeft, Tag, Calendar, User,
   Sparkles, Loader2, AlertTriangle, CheckCircle, XCircle,
   Wrench, Lightbulb, Target, Globe, FileText, Package,
-  FlaskConical, Bug, ChevronDown, ChevronUp
+  FlaskConical, Bug, ChevronDown, ChevronUp, Layers,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { toast } from "sonner";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState, useRef, type ReactNode } from "react";
 
 interface KnowledgeArticle {
   id: number;
@@ -89,7 +91,7 @@ export default function KnowledgeDetailPage() {
   const queryClient = useQueryClient();
   const [analysisOpen, setAnalysisOpen] = useState(false);
 
-  const { data: article, isLoading } = useQuery({
+  const { data: article, isLoading, error, refetch } = useQuery({
     queryKey: ["knowledge", slug],
     queryFn: () => fetchArticle(slug),
   });
@@ -100,16 +102,69 @@ export default function KnowledgeDetailPage() {
     enabled: !!article,
   });
 
+  const { data: allTopics = [] } = useQuery({
+    queryKey: ["knowledge-topics-flat"],
+    queryFn: () => apiClient.get("/knowledge/topics").then((r) => r.data as { id: number; label: string; path: string; level: number }[]),
+    staleTime: 60000,
+  });
+
+  const { data: articleTopicIds = [] } = useQuery({
+    queryKey: ["knowledge", slug, "topics"],
+    queryFn: () => article ? apiClient.get(`/knowledge/${article.id}/topics`).then((r) => r.data as number[]) : [],
+    enabled: !!article,
+  });
+
+  const [selectedTopicIds, setSelectedTopicIds] = useState<number[]>([]);
+  const topicsInitialized = useRef(false);
+  if (article && articleTopicIds.length > 0 && !topicsInitialized.current) {
+    setSelectedTopicIds(articleTopicIds);
+    topicsInitialized.current = true;
+  }
+
   const analyzeMutation = useMutation({
     mutationFn: () => article ? triggerAnalysis(article.id) : Promise.reject(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge", slug, "analysis"] });
       setAnalysisOpen(true);
+      toast.success("Анализ запущен");
+    },
+    onError: () => {
+      toast.error("Ошибка запуска анализа");
     },
   });
 
+  const topicsMutation = useMutation({
+    mutationFn: (topicIds: number[]) =>
+      apiClient.post(`/knowledge/${article!.id}/topics`, topicIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledge", slug, "topics"] });
+      toast.success("Темы сохранены");
+    },
+    onError: () => {
+      toast.error("Ошибка сохранения тем");
+    },
+  });
+
+  if (error && !isLoading) {
+    return <ErrorState message="Не удалось загрузить статью" onRetry={() => refetch()} />;
+  }
+
   if (isLoading) {
     return <ArticleSkeleton />;
+  }
+
+  if (!article) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground">Статья не найдена</p>
+        <Link
+          href="/knowledge"
+          className="mt-4 text-sm text-feleti-gold hover:underline"
+        >
+          ← Вернуться к списку
+        </Link>
+      </div>
+    );
   }
 
   if (!article) {
@@ -165,6 +220,54 @@ export default function KnowledgeDetailPage() {
               {tag}
             </span>
           ))}
+        </div>
+      </div>
+
+      {/* Topics */}
+      <div className="border border-white/10 rounded-lg overflow-hidden">
+        <div className="px-4 py-3 bg-white/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-feleti-gold" />
+              <span className="text-sm font-medium text-white">Темы</span>
+            </div>
+            <button
+              onClick={() => topicsMutation.mutate(selectedTopicIds)}
+              disabled={topicsMutation.isPending}
+              className="text-xs text-feleti-gold hover:text-feleti-gold/80 transition-colors disabled:opacity-50"
+            >
+              {topicsMutation.isPending ? "Сохранение..." : "Сохранить"}
+            </button>
+          </div>
+        </div>
+        <div className="p-3 max-h-48 overflow-y-auto scrollbar-thin">
+          <div className="flex flex-wrap gap-1.5">
+            {allTopics.map((topic) => {
+              const selected = selectedTopicIds.includes(topic.id);
+              return (
+                <button
+                  key={topic.id}
+                  onClick={() => {
+                    setSelectedTopicIds((prev) =>
+                      prev.includes(topic.id)
+                        ? prev.filter((id) => id !== topic.id)
+                        : [...prev, topic.id]
+                    );
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors ${
+                    selected
+                      ? "bg-feleti-gold/15 text-feleti-gold border border-feleti-gold/30"
+                      : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
+                  }`}
+                >
+                  {topic.label}
+                </button>
+              );
+            })}
+          </div>
+          {allTopics.length === 0 && (
+            <p className="text-xs text-muted-foreground py-2">Темы не загружены</p>
+          )}
         </div>
       </div>
 

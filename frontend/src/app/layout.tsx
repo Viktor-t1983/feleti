@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/lib/providers";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -49,7 +50,9 @@ export default function RootLayout({
     <html lang="ru" className="dark" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans min-h-screen bg-[#0a0a0a] text-white`}>
         <Providers>
-          <MainLayout>{children}</MainLayout>
+          <ErrorBoundary>
+            <MainLayout>{children}</MainLayout>
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>

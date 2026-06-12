@@ -14,6 +14,7 @@ from app.models.ingredient import Ingredient
 from app.schemas.common import Page, PageParams
 from app.schemas.ingredient import IngredientCreate, IngredientRead, IngredientUpdate
 from app.services import audit
+from app.services.pagination import paginate
 
 router = APIRouter()
 
@@ -27,28 +28,11 @@ async def list_ingredients(
     wood_species: Annotated[str | None, Query(description="Для type=wood")] = None,
 ) -> Page[IngredientRead]:
     stmt = select(Ingredient)
-    count_stmt = select(func.count()).select_from(Ingredient)
     if type is not None:
         stmt = stmt.where(Ingredient.type == type)
-        count_stmt = count_stmt.where(Ingredient.type == type)
     if wood_species is not None:
         stmt = stmt.where(Ingredient.wood_species == wood_species)
-        count_stmt = count_stmt.where(Ingredient.wood_species == wood_species)
-    total = await db.scalar(count_stmt) or 0
-    stmt = (
-        stmt.order_by(Ingredient.type.asc(), Ingredient.id.asc())
-        .offset((params.page - 1) * params.size)
-        .limit(params.size)
-    )
-    rows = (await db.scalars(stmt)).all()
-    pages = (total + params.size - 1) // params.size if total else 0
-    return Page[IngredientRead](
-        items=[IngredientRead.model_validate(r) for r in rows],
-        total=total,
-        page=params.page,
-        size=params.size,
-        pages=pages,
-    )
+    return await paginate(db, stmt, params, IngredientRead, order_by=Ingredient.id.asc())
 
 
 @router.get("/{ingredient_id}", response_model=IngredientRead, summary="Ингредиент по ID")
@@ -130,8 +114,8 @@ async def update_ingredient(
 
 @router.delete(
     "/{ingredient_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Удалить ингредиент",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_ingredient(
     ingredient_id: int, db: DBSession, user: CurrentUser

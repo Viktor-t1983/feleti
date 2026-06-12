@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import CurrentUser, DBSession
@@ -14,6 +14,7 @@ from app.models.product import Product
 from app.schemas.common import Page, PageParams
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
 from app.services import audit
+from app.services.pagination import paginate
 
 router = APIRouter()
 
@@ -27,33 +28,14 @@ async def list_products(
     q: Annotated[str | None, Query()] = None,
 ) -> Page[ProductRead]:
     stmt = select(Product)
-    count_stmt = select(func.count()).select_from(Product)
     if category is not None:
         stmt = stmt.where(Product.category == category)
-        count_stmt = count_stmt.where(Product.category == category)
     if q is not None:
         pattern = f"%{q}%"
         stmt = stmt.where(
             or_(Product.name.ilike(pattern), Product.description.ilike(pattern))
         )
-        count_stmt = count_stmt.where(
-            or_(Product.name.ilike(pattern), Product.description.ilike(pattern))
-        )
-    total = await db.scalar(count_stmt) or 0
-    stmt = (
-        stmt.order_by(Product.id.asc())
-        .offset((params.page - 1) * params.size)
-        .limit(params.size)
-    )
-    rows = (await db.scalars(stmt)).all()
-    pages = (total + params.size - 1) // params.size if total else 0
-    return Page[ProductRead](
-        items=[ProductRead.model_validate(r) for r in rows],
-        total=total,
-        page=params.page,
-        size=params.size,
-        pages=pages,
-    )
+    return await paginate(db, stmt, params, ProductRead, order_by=Product.id.asc())
 
 
 @router.get("/by-slug/{slug}", response_model=ProductRead, summary="Продукт по slug")
@@ -142,7 +124,8 @@ async def update_product(
 
 @router.delete(
     "/{product_id}",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Удалить продукт",
 )
 async def delete_product(product_id: int, db: DBSession, user: CurrentUser) -> None:

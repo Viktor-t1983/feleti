@@ -14,6 +14,7 @@ from app.models.brine import Brine
 from app.schemas.brine import BrineCreate, BrineRead, BrineUpdate
 from app.schemas.common import Page, PageParams
 from app.services import audit
+from app.services.pagination import paginate
 
 router = APIRouter()
 
@@ -26,25 +27,9 @@ async def list_brines(
     method: Annotated[str | None, Query()] = None,
 ) -> Page[BrineRead]:
     stmt = select(Brine)
-    count_stmt = select(func.count()).select_from(Brine)
     if method is not None:
         stmt = stmt.where(Brine.method == method)
-        count_stmt = count_stmt.where(Brine.method == method)
-    total = await db.scalar(count_stmt) or 0
-    stmt = (
-        stmt.order_by(Brine.method.asc(), Brine.id.asc())
-        .offset((params.page - 1) * params.size)
-        .limit(params.size)
-    )
-    rows = (await db.scalars(stmt)).all()
-    pages = (total + params.size - 1) // params.size if total else 0
-    return Page[BrineRead](
-        items=[BrineRead.model_validate(r) for r in rows],
-        total=total,
-        page=params.page,
-        size=params.size,
-        pages=pages,
-    )
+    return await paginate(db, stmt, params, BrineRead, order_by=Brine.id.asc())
 
 
 @router.get("/{brine_id}", response_model=BrineRead, summary="Посол по ID")
@@ -119,7 +104,8 @@ async def update_brine(
 
 @router.delete(
     "/{brine_id}",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Удалить посол",
 )
 async def delete_brine(brine_id: int, db: DBSession, user: CurrentUser) -> None:

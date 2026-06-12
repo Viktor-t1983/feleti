@@ -200,12 +200,50 @@ class ArticleAnalysisBatchResponse(APIModel):
     skipped: int
 
 
+class TopicCreate(APIModel):
+    label: Annotated[str, Field(min_length=1, max_length=200)]
+    slug: Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[a-z0-9-]+$")]
+    description: str | None = None
+    parent_id: int | None = None
+    sort_order: int = 0
+    icon: str | None = None
+
+
+class TopicUpdate(APIModel):
+    label: str | None = None
+    description: str | None = None
+    parent_id: int | None = None
+    sort_order: int | None = None
+    icon: str | None = None
+
+
+class TopicRead(APIModel):
+    id: int
+    slug: str
+    label: str
+    description: str | None = None
+    path: str
+    parent_id: int | None = None
+    level: int
+    sort_order: int
+    icon: str | None = None
+    article_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
 class TopicTreeNode(APIModel):
     """Узел дерева тем."""
 
-    path: str
+    id: int | None = None
+    slug: str = ""
     label: str
-    count: int
+    description: str | None = None
+    path: str
+    level: int = 0
+    sort_order: int = 0
+    icon: str | None = None
+    article_count: int = 0
     children: list[TopicTreeNode] = []
 
 
@@ -228,5 +266,8 @@ __all__ = [
     "CompetitorMention",
     "ArticleAnalysisTriggerResponse",
     "ArticleAnalysisBatchResponse",
+    "TopicCreate",
+    "TopicUpdate",
+    "TopicRead",
     "TopicTreeNode",
 ]

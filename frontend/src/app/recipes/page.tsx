@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 
 interface RecipePhase {
@@ -55,7 +56,7 @@ async function fetchRecipes(): Promise<RecipePage> {
 
 export default function RecipesPage() {
   const [search, setSearch] = useState("");
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["recipes"],
     queryFn: fetchRecipes,
   });
@@ -67,6 +68,10 @@ export default function RecipesPage() {
       (r.description?.toLowerCase() || "").includes(search.toLowerCase()) ||
       r.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()))
   );
+
+  if (error && !isLoading) {
+    return <ErrorState message="Не удалось загрузить список рецептов" onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return <RecipesSkeleton />;

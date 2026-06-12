@@ -15,6 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 
 type BatchStatus = "PLANNED" | "QUEUED" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED" | "FAILED";
@@ -98,7 +99,7 @@ export default function BatchesPage() {
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["batches", filter],
     queryFn: () => fetchBatches(filter),
     refetchInterval: filter === "active" ? 20000 : 30000,
@@ -117,6 +118,8 @@ export default function BatchesPage() {
   const sorted = [...batches].sort(
     (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
   );
+
+  if (error && !isLoading) return <ErrorState message="Не удалось загрузить список партий" onRetry={() => refetch()} />;
 
   if (isLoading) return <BatchesSkeleton />;
 

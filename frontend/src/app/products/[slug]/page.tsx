@@ -10,6 +10,7 @@ import {
   Droplets,
   BookOpen,
   FileText,
+  Pencil,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import Link from "next/link";
@@ -90,7 +91,7 @@ export default function ProductDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Назад к продуктам
         </Link>
-        <div className="flex items-start gap-4">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-feleti-gold/10 shrink-0">
             <Tag className="h-7 w-7 text-feleti-gold" />
           </div>
@@ -107,6 +108,13 @@ export default function ProductDetailPage() {
               )}
             </div>
           </div>
+          <Link
+            href={`/products/${product.slug}/edit`}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition-colors hover:bg-white/5"
+          >
+            <Pencil className="h-4 w-4" />
+            Редактировать
+          </Link>
         </div>
       </div>
 

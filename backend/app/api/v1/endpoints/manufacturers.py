@@ -14,6 +14,7 @@ from app.models.manufacturer import Manufacturer
 from app.schemas.common import Page, PageParams
 from app.schemas.manufacturer import ManufacturerCreate, ManufacturerRead, ManufacturerUpdate
 from app.services import audit
+from app.services.pagination import paginate
 
 router = APIRouter()
 
@@ -27,29 +28,11 @@ async def list_manufacturers(
     is_competitor: Annotated[bool | None, Query()] = None,
 ) -> Page[ManufacturerRead]:
     stmt = select(Manufacturer)
-    count_stmt = select(func.count()).select_from(Manufacturer)
     if is_our_brand is not None:
         stmt = stmt.where(Manufacturer.is_our_brand == is_our_brand)
-        count_stmt = count_stmt.where(Manufacturer.is_our_brand == is_our_brand)
     if is_competitor is not None:
         stmt = stmt.where(Manufacturer.is_competitor == is_competitor)
-        count_stmt = count_stmt.where(Manufacturer.is_competitor == is_competitor)
-
-    total = await db.scalar(count_stmt) or 0
-    stmt = (
-        stmt.order_by(Manufacturer.sort_order.asc(), Manufacturer.id.asc())
-        .offset((params.page - 1) * params.size)
-        .limit(params.size)
-    )
-    rows = (await db.scalars(stmt)).all()
-    pages = (total + params.size - 1) // params.size if total else 0
-    return Page[ManufacturerRead](
-        items=[ManufacturerRead.model_validate(r) for r in rows],
-        total=total,
-        page=params.page,
-        size=params.size,
-        pages=pages,
-    )
+    return await paginate(db, stmt, params, ManufacturerRead, order_by=Manufacturer.id.asc())
 
 
 @router.get("/{manufacturer_id}", response_model=ManufacturerRead, summary="Производитель по ID")
@@ -133,8 +116,8 @@ async def update_manufacturer(
 
 @router.delete(
     "/{manufacturer_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Удалить производителя",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_manufacturer(
     manufacturer_id: int, db: DBSession, user: CurrentAdmin

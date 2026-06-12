@@ -3,6 +3,14 @@ import { persist } from "zustand/middleware";
 import { loginJson, refreshToken, getMe } from "@/lib/api/auth";
 import type { User, LoginRequest } from "@/lib/api/auth";
 
+function setAuthCookie(token: string) {
+  document.cookie = `access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+}
+
+function clearAuthCookie() {
+  document.cookie = "access_token=; path=/; max-age=0; SameSite=Lax";
+}
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
@@ -27,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
           const tokens = await loginJson(credentials);
           localStorage.setItem("access_token", tokens.access_token);
           localStorage.setItem("refresh_token", tokens.refresh_token);
+          setAuthCookie(tokens.access_token);
           const user = await getMe();
           set({ user, isAuthenticated: true, isLoading: false });
         } catch (err) {
@@ -38,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        clearAuthCookie();
         set({ user: null, isAuthenticated: false, error: null });
       },
 

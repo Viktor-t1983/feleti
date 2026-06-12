@@ -9,8 +9,11 @@ import {
   Thermometer,
   Clock,
   FlaskConical,
+  Plus,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
+import Link from "next/link";
 
 interface BrineRead {
   id: number;
@@ -57,7 +60,7 @@ export default function BrinesPage() {
   const [method, setMethod] = useState("all");
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["brines", method, search],
     queryFn: async () => {
       const params = new URLSearchParams({ size: "200" });
@@ -69,6 +72,8 @@ export default function BrinesPage() {
   });
 
   const brines = data?.items || [];
+
+  if (error && !isLoading) return <ErrorState message="Не удалось загрузить список рассолов" onRetry={() => refetch()} />;
 
   if (isLoading) return <BrinesSkeleton />;
 
@@ -83,6 +88,13 @@ export default function BrinesPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href="/brines/new"
+          className="inline-flex items-center gap-2 rounded-xl bg-feleti-gold px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-feleti-gold/90"
+        >
+          <Plus className="h-4 w-4" />
+          Новый
+        </Link>
         <div className="flex gap-1 rounded-xl border border-white/5 bg-white/[0.02] p-1 overflow-x-auto max-w-full">
           {METHOD_TABS.map((tab) => (
             <button
@@ -130,7 +142,8 @@ function BrineCard({ brine, index }: { brine: BrineRead; index: number }) {
   const methodColor = METHOD_COLORS[brine.method] || "text-muted-foreground bg-white/5 border-white/10";
 
   return (
-    <motion.div
+    <Link href={`/brines/${brine.slug}`}>
+      <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
@@ -191,7 +204,7 @@ function BrineCard({ brine, index }: { brine: BrineRead; index: number }) {
           ))}
         </div>
       )}
-    </motion.div>
+    </motion.div></Link>
   );
 }
 

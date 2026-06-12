@@ -2,29 +2,34 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select, text
 
 from app.core.deps import CurrentAdmin, CurrentUser, DBSession
 from app.models.ai_settings import AISettings
-from app.models.knowledge import KnowledgeArticle
+from app.models.knowledge import ArticleTopic, KnowledgeArticle, KnowledgeTopic
 from app.schemas.knowledge import KnowledgeArticleSummary
 from app.schemas.ai import (
     AIAnalyzeRequest,
     AIAnalyzeResponse,
     AIAskRequest,
     AIAskResponse,
+    AICollectProgress,
+    AICollectRequest,
+    AICollectResponse,
     AISettingsRead,
     AISettingsUpdate,
     AITestResult,
 )
-
 from app.services.ai_service import AIService
+from app.services.knowledge_collector import CollectionStatus, get_collector
+from app.services.knowledge_pipeline import SourceType
 
 logger = logging.getLogger("ai_router")
 router = APIRouter()
@@ -42,8 +47,78 @@ def _excerpt(text: str, query: str, window: int = 300) -> str:
     return ("..." if start > 0 else "") + text[start:end] + ("..." if end < len(text) else "")
 
 
+async def _find_relevant_topic_ids(db_session, words: list[str]) -> set[int]:
+    """Найти ID узлов дерева, чьи label/description совпадают со словами вопроса."""
+    if not words:
+        return set()
+    topic_ids: set[int] = set()
+    for w in words:
+        topics = (
+            await db_session.scalars(
+                select(KnowledgeTopic).where(
+                    or_(
+                        KnowledgeTopic.label.ilike(f"%{w}%"),
+                        KnowledgeTopic.description.ilike(f"%{w}%"),
+                    )
+                )
+            )
+        ).all()
+        topic_ids.update(t.id for t in topics)
+
+    if not topic_ids:
+        return set()
+
+    # собираем всех потомков найденных узлов
+    all_topics = (
+        (await db_session.scalars(select(KnowledgeTopic))).all()
+    )
+    child_map: dict[int, list[int]] = {}
+    for t in all_topics:
+        if t.parent_id:
+            child_map.setdefault(t.parent_id, []).append(t.id)
+
+    def collect_descendants(tid: int) -> set[int]:
+        result = {tid}
+        for child_id in child_map.get(tid, []):
+            result.update(collect_descendants(child_id))
+        return result
+
+    all_ids: set[int] = set()
+    for tid in topic_ids:
+        all_ids.update(collect_descendants(tid))
+    return all_ids
+
+
 async def _search_context(db_session, question: str, top_k: int = 5) -> str:
-    """Найти релевантные статьи и вернуть контекст."""
+    """Найти релевантные статьи через дерево тем + FTS."""
+    import re
+    words = [w for w in re.split(r"[\s,.;:!?()\[\]{}\"']+", question.lower()) if len(w) >= 3][:10]
+
+    # 1. Сначала пытаемся найти статьи через семантическое дерево
+    topic_ids = await _find_relevant_topic_ids(db_session, words)
+    if topic_ids:
+        # ищем статьи, привязанные к этим темам или их потомкам
+        article_ids_q = (
+            select(ArticleTopic.article_id)
+            .where(ArticleTopic.topic_id.in_(topic_ids))
+            .limit(top_k * 3)
+        )
+        article_ids = (await db_session.scalars(article_ids_q)).all()
+        if article_ids:
+            stmt = (
+                select(KnowledgeArticle)
+                .where(KnowledgeArticle.id.in_(article_ids))
+                .limit(top_k)
+            )
+            rows = (await db_session.scalars(stmt)).all()
+            if rows:
+                parts = []
+                for a in rows:
+                    snippet = _excerpt(a.body_md or "", question, window=500)
+                    parts.append(f"## {a.title}\n{snippet[:2000]}")
+                return "\n\n".join(parts)
+
+    # 2. Fallback: FTS
     try:
         fts = text(
             "to_tsvector('russian', body_md || ' ' || title) @@ plainto_tsquery('russian', :q)"
@@ -75,7 +150,6 @@ async def _search_context(db_session, question: str, top_k: int = 5) -> str:
         rows = (await db_session.scalars(stmt)).all()
 
     if not rows:
-        # Если ничего не нашли — возвращаем топ статей
         stmt = select(KnowledgeArticle).order_by(KnowledgeArticle.updated_at.desc()).limit(3)
         rows = (await db_session.scalars(stmt)).all()
 
@@ -262,7 +336,7 @@ async def update_ai_settings(
     await db.flush()
     await db.commit()
     await db.refresh(settings)
-    logger.info("AI settings updated by user %s", user.id)
+    logger.info("AI settings updated by admin %s", admin.id)
     return AISettingsRead.model_validate(settings)
 
 
@@ -279,3 +353,103 @@ async def test_ai(
     service = AIService(settings)
     result = await service.test()
     return AITestResult(**result)
+
+
+@router.post(
+    "/collect",
+    response_model=AICollectResponse,
+    summary="Запустить сбор знаний по запросу",
+)
+async def ai_collect(
+    payload: AICollectRequest,
+    _user: CurrentUser,
+) -> AICollectResponse:
+    source_types = None
+    if payload.source_types:
+        source_types = [SourceType(st) for st in payload.source_types if st in {"web", "youtube", "telegram"}]
+
+    collector = get_collector()
+    job = await collector.collect(
+        query=payload.query,
+        source_types=source_types,
+        topic_ids=payload.topic_ids,
+        max_results=payload.max_results,
+    )
+    return AICollectResponse(job_id=job.id, status=job.status.value)
+
+
+@router.get(
+    "/collect/{job_id}",
+    response_model=AICollectProgress,
+    summary="Статус задачи сбора знаний",
+)
+async def ai_collect_status(
+    job_id: str,
+    _user: CurrentUser,
+) -> AICollectProgress:
+    collector = get_collector()
+    job = collector.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+    return AICollectProgress(
+        job_id=job.id,
+        status=job.status.value,
+        total=job.total,
+        processed=job.processed,
+        skipped=job.skipped,
+        created=job.created,
+        errors=job.errors,
+    )
+
+
+@router.get(
+    "/collect/{job_id}/progress",
+    summary="SSE-прогресс сбора знаний",
+)
+async def ai_collect_progress(
+    job_id: str,
+    request: Request,
+    _user: CurrentUser,
+) -> StreamingResponse:
+    collector = get_collector()
+    job = collector.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+
+    async def event_stream():
+        last_processed = -1
+        while True:
+            if await request.is_disconnected():
+                break
+            current = collector.get_job(job_id)
+            if current is None:
+                yield "data: " + json.dumps({"type": "error", "message": "Job lost"}) + "\n\n"
+                break
+
+            if current.processed != last_processed or current.status in (CollectionStatus.COMPLETED, CollectionStatus.FAILED):
+                last_processed = current.processed
+                yield "data: " + json.dumps({
+                    "type": "progress",
+                    "status": current.status.value,
+                    "total": current.total,
+                    "processed": current.processed,
+                    "skipped": current.skipped,
+                    "created": current.created,
+                    "errors": current.errors,
+                }) + "\n\n"
+
+            if current.status in (CollectionStatus.COMPLETED, CollectionStatus.FAILED):
+                yield "data: " + json.dumps({"type": "done", "status": current.status.value}) + "\n\n"
+                break
+
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

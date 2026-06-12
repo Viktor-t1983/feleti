@@ -19,6 +19,7 @@ import {
   Factory,
   Droplets,
   Shield,
+  GitBranch,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
 
@@ -37,6 +38,7 @@ export function Sidebar() {
     { href: "/brines", label: "Рассолы", icon: Droplets },
     { href: "/batches", label: "Партии", icon: Package },
     { href: "/knowledge", label: "Знания", icon: Lightbulb },
+    { href: "/knowledge/tree", label: "Дерево знаний", icon: GitBranch },
     { href: "/ai", label: "AI-ассистент", icon: Brain },
     { href: "/manufacturers", label: "Производители", icon: Factory },
     { href: "/competitors", label: "Конкуренты", icon: BarChart3 },

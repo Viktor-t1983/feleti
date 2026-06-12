@@ -9,8 +9,10 @@ import {
   ArrowRight,
   Thermometer,
   Droplets,
+  Plus,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 
 const CATEGORIES = [
@@ -68,7 +70,7 @@ export default function ProductsPage() {
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["products", category, search],
     queryFn: async () => {
       const params = new URLSearchParams({ size: "200" });
@@ -83,6 +85,8 @@ export default function ProductsPage() {
   const categorySet = products.reduce<Record<string, boolean>>((acc, p) => { acc[p.category] = true; return acc; }, {});
   const categories = Object.keys(categorySet);
 
+  if (error && !isLoading) return <ErrorState message="Не удалось загрузить список продуктов" onRetry={() => refetch()} />;
+
   if (isLoading) return <ProductsSkeleton />;
 
   return (
@@ -95,7 +99,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-3">
         <div className="flex gap-1 rounded-xl border border-white/5 bg-white/[0.02] p-1 overflow-x-auto max-w-full">
           {CATEGORIES.map((tab) => (
             <button
@@ -121,6 +125,13 @@ export default function ProductsPage() {
             className="w-full rounded-xl border border-white/5 bg-white/[0.02] py-2 pl-10 pr-4 text-sm text-white placeholder:text-muted-foreground focus:border-feleti-gold/30 focus:outline-none"
           />
         </div>
+        <Link
+          href="/products/new"
+          className="inline-flex items-center gap-2 rounded-xl bg-feleti-gold px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-feleti-gold/90"
+        >
+          <Plus className="h-4 w-4" />
+          Новый
+        </Link>
       </div>
 
       {/* Grid */}

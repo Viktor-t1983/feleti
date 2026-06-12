@@ -182,7 +182,8 @@ async def update_recipe(
 
 @router.delete(
     "/{recipe_id}",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Удалить рецепт",
 )
 async def delete_recipe(recipe_id: int, db: DBSession, user: CurrentUser) -> None:

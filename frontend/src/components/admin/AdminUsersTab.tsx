@@ -23,6 +23,7 @@ import {
 } from "@/lib/api/admin";
 import type { User } from "@/lib/api/auth";
 import type { UserCreate, UserUpdate } from "@/lib/api/admin";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Админ",
@@ -71,6 +72,7 @@ export function AdminUsersTab() {
   const [form, setForm] = useState<UserFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,12 +149,17 @@ export function AdminUsersTab() {
   };
 
   const handleDelete = async (u: User) => {
-    if (!confirm(`Удалить пользователя ${u.username}?`)) return;
+    setDeleteTarget(u);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteUser(u.id);
+      await deleteUser(deleteTarget.id);
       await load();
+      setDeleteTarget(null);
     } catch {
-      /* ignore */
+      setDeleteTarget(null);
     }
   };
 
@@ -421,6 +428,20 @@ export function AdminUsersTab() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Удаление пользователя"
+        message={
+          deleteTarget
+            ? `Вы уверены, что хотите удалить пользователя ${deleteTarget.username}?`
+            : ""
+        }
+        confirmLabel="Удалить"
+        variant="danger"
+      />
     </div>
   );
 }

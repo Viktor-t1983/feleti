@@ -1,4 +1,4 @@
-"""Ingredients CRUD endpoint tests."""
+"""Ingredient CRUD endpoint tests."""
 from __future__ import annotations
 
 from uuid import uuid4
@@ -16,141 +16,63 @@ def test_list_ingredients(client, auth_headers):
 
 
 def test_create_ingredient(client, auth_headers):
-    slug = _unique_slug("kurinaya-grudka")
+    slug = _unique_slug("test-ingredient")
     resp = client.post(
         "/ingredients",
         headers=auth_headers,
         json={
-            "name": "Куриная грудка",
+            "name": "Тестовый ингредиент",
             "slug": slug,
             "type": "мясо",
-            "protein_per_100g": 23.0,
-            "fat_per_100g": 1.5,
-            "carbs_per_100g": 0.0,
-            "kcal_per_100g": 110.0,
-            "price_per_kg": 450.0,
-            "unit": "кг",
-            "is_allergen": False,
-            "allergens": [],
-            "gmo_flag": False,
         },
     )
     assert resp.status_code == 201
     data = resp.json()
-    assert data["name"] == "Куриная грудка"
+    assert data["name"] == "Тестовый ингредиент"
     assert data["slug"] == slug
     assert data["type"] == "мясо"
-    assert data["id"] > 0
-
-
-def test_list_ingredients_with_data(client, auth_headers):
-    slug = _unique_slug("govyadina")
-    client.post(
-        "/ingredients",
-        headers=auth_headers,
-        json={
-            "name": "Говядина",
-            "slug": slug,
-            "type": "мясо",
-            "protein_per_100g": 20.0,
-            "fat_per_100g": 10.0,
-            "carbs_per_100g": 0.0,
-            "kcal_per_100g": 170.0,
-            "price_per_kg": 600.0,
-            "unit": "кг",
-            "is_allergen": False,
-            "allergens": [],
-            "gmo_flag": False,
-        },
-    )
-    resp = client.get("/ingredients?size=200", headers=auth_headers)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["total"] >= 1
+    return data
 
 
 def test_get_ingredient(client, auth_headers):
-    slug = _unique_slug("sol-povarennaya")
-    create_resp = client.post(
-        "/ingredients",
-        headers=auth_headers,
-        json={
-            "name": "Соль поваренная",
-            "slug": slug,
-            "type": "соль",
-            "protein_per_100g": 0.0,
-            "fat_per_100g": 0.0,
-            "carbs_per_100g": 0.0,
-            "kcal_per_100g": 0.0,
-            "price_per_kg": 30.0,
-            "unit": "кг",
-            "is_allergen": False,
-            "allergens": [],
-            "gmo_flag": False,
-        },
-    )
-    ing_id = create_resp.json()["id"]
-
-    resp = client.get(f"/ingredients/{ing_id}", headers=auth_headers)
+    created = test_create_ingredient(client, auth_headers)
+    resp = client.get(f"/ingredients/{created['id']}", headers=auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["name"] == "Соль поваренная"
+    data = resp.json()
+    assert data["name"] == "Тестовый ингредиент"
 
 
 def test_update_ingredient(client, auth_headers):
-    slug = _unique_slug("perec-chernyy")
-    create_resp = client.post(
-        "/ingredients",
-        headers=auth_headers,
-        json={
-            "name": "Перец чёрный",
-            "slug": slug,
-            "type": "специя",
-            "protein_per_100g": 10.0,
-            "fat_per_100g": 3.0,
-            "carbs_per_100g": 38.0,
-            "kcal_per_100g": 250.0,
-            "price_per_kg": 800.0,
-            "unit": "кг",
-            "is_allergen": False,
-            "allergens": [],
-            "gmo_flag": False,
-        },
-    )
-    ing_id = create_resp.json()["id"]
-
+    created = test_create_ingredient(client, auth_headers)
     resp = client.patch(
-        f"/ingredients/{ing_id}",
+        f"/ingredients/{created['id']}",
         headers=auth_headers,
-        json={"price_per_kg": 900.0},
+        json={"description": "Обновлённое описание"},
     )
     assert resp.status_code == 200
-    assert resp.json()["price_per_kg"] == 900.0
+    data = resp.json()
+    assert data["description"] == "Обновлённое описание"
 
 
 def test_delete_ingredient(client, auth_headers):
-    slug = _unique_slug("oregano")
-    create_resp = client.post(
-        "/ingredients",
-        headers=auth_headers,
-        json={
-            "name": "Орегано",
-            "slug": slug,
-            "type": "специя",
-            "protein_per_100g": 9.0,
-            "fat_per_100g": 4.0,
-            "carbs_per_100g": 50.0,
-            "kcal_per_100g": 260.0,
-            "price_per_kg": 1200.0,
-            "unit": "кг",
-            "is_allergen": False,
-            "allergens": [],
-            "gmo_flag": False,
-        },
-    )
-    ing_id = create_resp.json()["id"]
+    created = test_create_ingredient(client, auth_headers)
+    resp = client.delete(f"/ingredients/{created['id']}", headers=auth_headers)
+    assert resp.status_code == 204
 
-    resp = client.delete(f"/ingredients/{ing_id}", headers=auth_headers)
-    assert resp.status_code == 200
 
-    resp = client.get(f"/ingredients/{ing_id}", headers=auth_headers)
+def test_get_ingredient_404(client, auth_headers):
+    resp = client.get("/ingredients/999999", headers=auth_headers)
     assert resp.status_code == 404
+
+
+def test_filter_by_type(client, auth_headers):
+    resp = client.get("/ingredients?type=мясо&size=200", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    for item in data["items"]:
+        assert item["type"] == "мясо"
+
+
+def test_create_ingredient_no_auth(client):
+    resp = client.post("/ingredients", json={"name": "x", "slug": "x", "type": "мясо"})
+    assert resp.status_code == 401

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.core.deps import CurrentAdmin, CurrentUser, DBSession
 from app.models.audit import AuditAction
 from app.models.competitor import Competitor, CompetitorModel, CompetitorProblem
-from app.schemas.common import Page
+from app.schemas.common import Page, PageParams
 from app.schemas.competitor import (
     CompetitorCreate,
     CompetitorOnboardRequest,
@@ -20,6 +22,7 @@ from app.schemas.competitor import (
 )
 from app.services import audit
 from app.services.competitor_onboarder import CompetitorOnboarder
+from app.services.pagination import paginate
 
 router = APIRouter()
 
@@ -28,8 +31,7 @@ router = APIRouter()
 async def list_competitors(
     db: DBSession,
     _user: CurrentUser,
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=200),
+    params: Annotated[PageParams, Query()] = PageParams(),
     is_main: bool | None = Query(None),
     segment: str | None = Query(None),
 ) -> Page[CompetitorRead]:
@@ -37,29 +39,11 @@ async def list_competitors(
         joinedload(Competitor.models),
         joinedload(Competitor.problems),
     )
-    count_stmt = select(func.count()).select_from(Competitor)
     if is_main is not None:
         stmt = stmt.where(Competitor.is_main_competitor == is_main)
-        count_stmt = count_stmt.where(Competitor.is_main_competitor == is_main)
     if segment:
         stmt = stmt.where(Competitor.segment.ilike(f"%{segment}%"))
-        count_stmt = count_stmt.where(Competitor.segment.ilike(f"%{segment}%"))
-
-    total = await db.scalar(count_stmt) or 0
-    stmt = (
-        stmt.order_by(Competitor.is_main_competitor.desc(), Competitor.id.asc())
-        .offset((page - 1) * size)
-        .limit(size)
-    )
-    rows = (await db.scalars(stmt)).unique().all()
-    pages = (total + size - 1) // size if total else 0
-    return Page[CompetitorRead](
-        items=[CompetitorRead.model_validate(r) for r in rows],
-        total=total,
-        page=page,
-        size=size,
-        pages=pages,
-    )
+    return await paginate(db, stmt, params, CompetitorRead, order_by=Competitor.id.asc(), unique=True)
 
 
 @router.get("/{competitor_id}", response_model=CompetitorRead, summary="Конкурент по ID")
@@ -168,8 +152,8 @@ async def onboard_competitor(
 
 @router.delete(
     "/{competitor_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Удалить конкурента",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_competitor(
     competitor_id: int, db: DBSession, user: CurrentAdmin

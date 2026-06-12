@@ -22,9 +22,11 @@ from app.models.audit import AuditAction
 from app.models.knowledge import (
     ArticleAnalysis,
     ArticleCategory,
+    ArticleTopic,
     AttachmentKind,
     KnowledgeArticle,
     KnowledgeAttachment,
+    KnowledgeTopic,
 )
 from app.schemas.common import Page, PageParams
 from app.schemas.knowledge import (
@@ -39,7 +41,10 @@ from app.schemas.knowledge import (
     ArticleAnalysisRead,
     ArticleAnalysisTriggerResponse,
     ArticleAnalysisBatchResponse,
+    TopicCreate,
+    TopicRead,
     TopicTreeNode,
+    TopicUpdate,
 )
 from app.services import audit
 from app.services.article_analyzer import ArticleAnalyzer
@@ -87,6 +92,7 @@ async def list_articles(
     competitor_id: Annotated[int | None, Query()] = None,
     is_published: Annotated[bool | None, Query()] = None,
     topic_path: Annotated[str | None, Query()] = None,
+    topic_id: Annotated[int | None, Query()] = None,
     sort_by: Annotated[SortField, Query()] = SortField.UPDATED_AT,
     sort_order: Annotated[SortOrder, Query()] = SortOrder.DESC,
 ) -> Page[KnowledgeArticleSummary]:
@@ -115,6 +121,9 @@ async def list_articles(
         else:
             stmt = stmt.where(ArticleAnalysis.topic_path == topic_path)
             count_stmt = count_stmt.join(ArticleAnalysis, ArticleAnalysis.article_id == KnowledgeArticle.id).where(ArticleAnalysis.topic_path == topic_path)
+    if topic_id is not None:
+        stmt = stmt.join(ArticleTopic, ArticleTopic.article_id == KnowledgeArticle.id).where(ArticleTopic.topic_id == topic_id)
+        count_stmt = count_stmt.join(ArticleTopic, ArticleTopic.article_id == KnowledgeArticle.id).where(ArticleTopic.topic_id == topic_id)
 
     total = await db.scalar(count_stmt) or 0
     sort_column = getattr(KnowledgeArticle, sort_by.value)
@@ -271,14 +280,14 @@ async def get_topic_tree(
 
     # Build tree from flat paths
     root: dict[str, TopicTreeNode] = {}
-    for path, count in rows:
+    for path, cnt in rows:
         parts = path.strip("/").split("/")
         full = ""
         for i, part in enumerate(parts):
             full = f"{full}/{part}" if full else f"/{part}"
             if full not in root:
-                root[full] = TopicTreeNode(path=full, label=part, count=0)
-            root[full].count += count
+                root[full] = TopicTreeNode(path=full, label=part, article_count=0)
+            root[full].article_count += cnt
 
     # Nest children
     tree: list[TopicTreeNode] = []
@@ -437,8 +446,8 @@ async def update_article(
 
 @router.delete(
     "/{article_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Удалить статью",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_article(
     article_id: int, db: DBSession, user: CurrentUser
@@ -642,3 +651,331 @@ async def ask_question(
         sources=sources,
         query=q,
     )
+
+
+# ─── Knowledge Topic (семантическое дерево) ──────────────────────────────────
+
+
+@router.get(
+    "/topics/tree",
+    response_model=list[TopicTreeNode],
+    summary="Дерево тем (семантическая таксономия)",
+)
+async def get_topic_tree(
+    db: DBSession,
+    _user: CurrentUser,
+) -> list[TopicTreeNode]:
+    """Возвращает иерархическое дерево тем KnowledgeTopic."""
+    all_topics = (
+        (await db.scalars(
+            select(KnowledgeTopic).order_by(KnowledgeTopic.level, KnowledgeTopic.sort_order)
+        ))
+        .all()
+    )
+
+    # считаем статьи в каждом узле
+    topic_counts: dict[int, int] = {}
+    if all_topics:
+        rows = (
+            await db.execute(
+                select(
+                    ArticleTopic.topic_id,
+                    func.count().label("cnt"),
+                ).group_by(ArticleTopic.topic_id)
+            )
+        ).all()
+        for topic_id, cnt in rows:
+            topic_counts[topic_id] = cnt
+
+    # мапим id → node
+    node_map: dict[int, TopicTreeNode] = {}
+    for t in all_topics:
+        node_map[t.id] = TopicTreeNode(
+            id=t.id,
+            slug=t.slug,
+            label=t.label,
+            description=t.description,
+            path=t.path,
+            level=t.level,
+            sort_order=t.sort_order,
+            icon=t.icon,
+            article_count=topic_counts.get(t.id, 0),
+            children=[],
+        )
+
+    # строим дерево
+    tree: list[TopicTreeNode] = []
+    for t in all_topics:
+        node = node_map[t.id]
+        if t.parent_id and t.parent_id in node_map:
+            node_map[t.parent_id].children.append(node)
+        else:
+            tree.append(node)
+
+    return tree
+
+
+@router.get(
+    "/topics",
+    response_model=list[TopicRead],
+    summary="Все темы (плоский список)",
+)
+async def list_topics(
+    db: DBSession,
+    _user: CurrentUser,
+    parent_id: Annotated[int | None, Query()] = None,
+) -> list[TopicRead]:
+    stmt = select(KnowledgeTopic).order_by(KnowledgeTopic.level, KnowledgeTopic.sort_order)
+    if parent_id is not None:
+        stmt = stmt.where(KnowledgeTopic.parent_id == parent_id)
+    rows = (await db.scalars(stmt)).all()
+
+    # считаем статьи
+    topic_counts: dict[int, int] = {}
+    if rows:
+        counts = (
+            await db.execute(
+                select(
+                    ArticleTopic.topic_id,
+                    func.count().label("cnt"),
+                ).group_by(ArticleTopic.topic_id)
+            )
+        ).all()
+        for tid, cnt in counts:
+            topic_counts[tid] = cnt
+
+    return [
+        TopicRead(
+            id=t.id,
+            slug=t.slug,
+            label=t.label,
+            description=t.description,
+            path=t.path,
+            parent_id=t.parent_id,
+            level=t.level,
+            sort_order=t.sort_order,
+            icon=t.icon,
+            article_count=topic_counts.get(t.id, 0),
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        )
+        for t in rows
+    ]
+
+
+@router.get(
+    "/topics/{topic_id}",
+    response_model=TopicRead,
+    summary="Тема по ID",
+)
+async def get_topic(topic_id: int, db: DBSession, _user: CurrentUser) -> TopicRead:
+    t = await db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == topic_id))
+    if t is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
+
+    # считаем статьи
+    cnt = await db.scalar(
+        select(func.count()).where(ArticleTopic.topic_id == topic_id)
+    ) or 0
+
+    return TopicRead(
+        id=t.id,
+        slug=t.slug,
+        label=t.label,
+        description=t.description,
+        path=t.path,
+        parent_id=t.parent_id,
+        level=t.level,
+        sort_order=t.sort_order,
+        icon=t.icon,
+        article_count=cnt,
+        created_at=t.created_at,
+        updated_at=t.updated_at,
+    )
+
+
+@router.post(
+    "/topics",
+    response_model=TopicRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать тему",
+)
+async def create_topic(
+    payload: TopicCreate,
+    db: DBSession,
+    user: CurrentUser,
+) -> TopicRead:
+    parent_path = ""
+    parent_level = -1
+    if payload.parent_id:
+        parent = await db.scalar(
+            select(KnowledgeTopic).where(KnowledgeTopic.id == payload.parent_id)
+        )
+        if parent is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Родительская тема не найдена",
+            )
+        parent_path = parent.path
+        parent_level = parent.level
+
+    new_path = f"{parent_path}/{payload.slug}" if parent_path else f"/{payload.slug}"
+
+    # проверяем уникальность slug
+    existing = await db.scalar(
+        select(KnowledgeTopic).where(KnowledgeTopic.slug == payload.slug)
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Тема со slug '{payload.slug}' уже существует",
+        )
+
+    t = KnowledgeTopic(
+        slug=payload.slug,
+        label=payload.label,
+        description=payload.description,
+        path=new_path,
+        parent_id=payload.parent_id,
+        level=parent_level + 1,
+        sort_order=payload.sort_order,
+        icon=payload.icon,
+    )
+    db.add(t)
+    await db.flush()
+    await db.commit()
+    await db.refresh(t)
+
+    return TopicRead(
+        id=t.id,
+        slug=t.slug,
+        label=t.label,
+        description=t.description,
+        path=t.path,
+        parent_id=t.parent_id,
+        level=t.level,
+        sort_order=t.sort_order,
+        icon=t.icon,
+        article_count=0,
+        created_at=t.created_at,
+        updated_at=t.updated_at,
+    )
+
+
+@router.patch(
+    "/topics/{topic_id}",
+    response_model=TopicRead,
+    summary="Обновить тему",
+)
+async def update_topic(
+    topic_id: int,
+    payload: TopicUpdate,
+    db: DBSession,
+    _user: CurrentUser,
+) -> TopicRead:
+    t = await db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == topic_id))
+    if t is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
+
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(t, k, v)
+
+    await db.flush()
+    await db.commit()
+    await db.refresh(t)
+
+    cnt = await db.scalar(
+        select(func.count()).where(ArticleTopic.topic_id == topic_id)
+    ) or 0
+
+    return TopicRead(
+        id=t.id,
+        slug=t.slug,
+        label=t.label,
+        description=t.description,
+        path=t.path,
+        parent_id=t.parent_id,
+        level=t.level,
+        sort_order=t.sort_order,
+        icon=t.icon,
+        article_count=cnt,
+        created_at=t.created_at,
+        updated_at=t.updated_at,
+    )
+
+
+@router.delete(
+    "/topics/{topic_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_topic(
+    topic_id: int,
+    db: DBSession,
+    _user: CurrentUser,
+) -> None:
+    t = await db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == topic_id))
+    if t is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тема не найдена")
+
+    await db.delete(t)
+    await db.commit()
+
+
+@router.get(
+    "/{article_id}/topics",
+    response_model=list[int],
+    summary="ID тем, привязанных к статье",
+)
+async def get_article_topics(
+    article_id: int,
+    db: DBSession,
+    _user: CurrentUser,
+) -> list[int]:
+    rows = (
+        await db.execute(
+            select(ArticleTopic.topic_id).where(ArticleTopic.article_id == article_id)
+        )
+    ).scalars().all()
+    return list(rows)
+
+
+@router.post(
+    "/{article_id}/topics",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    summary="Привязать статью к темам",
+)
+async def set_article_topics(
+    article_id: int,
+    topic_ids: list[int],
+    db: DBSession,
+    _user: CurrentUser,
+) -> None:
+    article = await db.scalar(
+        select(KnowledgeArticle).where(KnowledgeArticle.id == article_id)
+    )
+    if article is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Статья не найдена"
+        )
+
+    # удаляем старые связи
+    await db.execute(
+        ArticleTopic.__table__.delete().where(ArticleTopic.article_id == article_id)
+    )
+
+    # добавляем новые
+    for tid in topic_ids:
+        topic = await db.scalar(
+            select(KnowledgeTopic).where(KnowledgeTopic.id == tid)
+        )
+        if topic is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Тема {tid} не найдена",
+            )
+        db.add(ArticleTopic(article_id=article_id, topic_id=tid))
+
+    await db.commit()

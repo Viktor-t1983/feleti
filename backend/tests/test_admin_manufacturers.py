@@ -95,7 +95,7 @@ def test_delete_manufacturer(client, auth_headers):
     mfg_id = created["id"]
 
     resp = client.delete(f"/manufacturers/{mfg_id}", headers=auth_headers)
-    assert resp.status_code == 200
+    assert resp.status_code == 204
 
 
 def test_manufacturer_404(client, auth_headers):

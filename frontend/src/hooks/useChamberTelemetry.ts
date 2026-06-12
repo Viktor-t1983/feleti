@@ -6,6 +6,7 @@ import type { HmiData, TelemetryPoint } from "@/lib/types/chamber";
 const WS_HEARTBEAT_INTERVAL = 30000;
 const WS_RECONNECT_BASE_DELAY = 1000;
 const WS_RECONNECT_MAX_DELAY = 30000;
+const WS_RECONNECT_MAX_ATTEMPTS = 20;
 const HISTORY_MAX = 120;
 
 function createDefaultHmi(): HmiData {
@@ -28,30 +29,53 @@ function createDefaultHmi(): HmiData {
   };
 }
 
+function backoffWithJitter(attempt: number): number {
+  const base = Math.min(
+    WS_RECONNECT_BASE_DELAY * Math.pow(2, attempt),
+    WS_RECONNECT_MAX_DELAY
+  );
+  const jitter = 0.7 + Math.random() * 0.6;
+  return Math.round(base * jitter);
+}
+
 export function useChamberTelemetry(chamberId: string) {
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [hmi, setHmi] = useState<HmiData>(createDefaultHmi);
   const [history, setHistory] = useState<TelemetryPoint[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptRef = useRef(0);
+  const attemptRef = useRef(0);
   const mountedRef = useRef(true);
+  const hiddenRef = useRef(false);
 
   const connect = useCallback(() => {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || hiddenRef.current) return;
 
     const token = localStorage.getItem("access_token");
     if (!token) return;
 
-    const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/api/v1"}/chambers/${chamberId}/telemetry/ws?token=${token}`;
+    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/api/v1";
+    const wsUrl = `${baseUrl}/chambers/${chamberId}/telemetry/ws?token=${token}`;
+
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
       if (!mountedRef.current) { ws.close(); return; }
       setConnected(true);
-      reconnectAttemptRef.current = 0;
+      setReconnecting(false);
+      setReconnectAttempt(0);
+      attemptRef.current = 0;
 
       heartbeatRef.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -109,14 +133,16 @@ export function useChamberTelemetry(chamberId: string) {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
       }
-      if (mountedRef.current) {
-        const delay = Math.min(
-          WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttemptRef.current),
-          WS_RECONNECT_MAX_DELAY
-        );
-        reconnectAttemptRef.current++;
-        reconnectRef.current = setTimeout(connect, delay);
+      if (!mountedRef.current || hiddenRef.current) return;
+      attemptRef.current++;
+      if (attemptRef.current > WS_RECONNECT_MAX_ATTEMPTS) {
+        setReconnecting(false);
+        return;
       }
+      setReconnecting(true);
+      setReconnectAttempt(attemptRef.current);
+      const delay = backoffWithJitter(attemptRef.current - 1);
+      reconnectRef.current = setTimeout(connect, delay);
     };
 
     ws.onerror = () => {
@@ -128,9 +154,20 @@ export function useChamberTelemetry(chamberId: string) {
     mountedRef.current = true;
     connect();
 
+    const handleVisibility = () => {
+      hiddenRef.current = document.hidden;
+      if (!document.hidden) {
+        connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       mountedRef.current = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
       if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
         wsRef.current.close();
         wsRef.current = null;
       }
@@ -145,5 +182,5 @@ export function useChamberTelemetry(chamberId: string) {
     };
   }, [connect]);
 
-  return { connected, hmi, history };
+  return { connected, reconnecting, reconnectAttempt, hmi, history };
 }

@@ -17,6 +17,8 @@ import { ChamberCamera } from "./ChamberCamera";
 interface HmiDashboardProps {
   chamberId: string;
   connected: boolean;
+  reconnecting?: boolean;
+  reconnectAttempt?: number;
   hmi: HmiData;
   history: TelemetryPoint[];
   chamberName?: string;
@@ -67,6 +69,8 @@ function generateMockHistory(): TelemetryPoint[] {
 export function HmiDashboard({
   chamberId,
   connected,
+  reconnecting,
+  reconnectAttempt,
   hmi,
   history,
 }: HmiDashboardProps) {
@@ -171,6 +175,11 @@ export function HmiDashboard({
             <>
               <Wifi className="h-3.5 w-3.5 text-emerald-400" />
               <span className="text-emerald-400 font-medium">В эфире</span>
+            </>
+          ) : reconnecting ? (
+            <>
+              <WifiOff className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+              <span className="text-amber-400">Переподключение ({reconnectAttempt})</span>
             </>
           ) : (
             <>

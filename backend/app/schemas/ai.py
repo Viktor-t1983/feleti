@@ -64,6 +64,28 @@ class AITestResult(APIModel):
     error: str | None = None
 
 
+class AICollectRequest(APIModel):
+    query: Annotated[str, Field(min_length=2, max_length=500)]
+    source_types: list[str] | None = None
+    topic_ids: list[int] | None = None
+    max_results: int = 10
+
+
+class AICollectResponse(APIModel):
+    job_id: str
+    status: str
+
+
+class AICollectProgress(APIModel):
+    job_id: str
+    status: str
+    total: int = 0
+    processed: int = 0
+    skipped: int = 0
+    created: list[int] = []
+    errors: list[str] = []
+
+
 __all__ = [
     "AIAskRequest",
     "AIAskResponse",
@@ -72,4 +94,7 @@ __all__ = [
     "AISettingsRead",
     "AISettingsUpdate",
     "AITestResult",
+    "AICollectRequest",
+    "AICollectResponse",
+    "AICollectProgress",
 ]

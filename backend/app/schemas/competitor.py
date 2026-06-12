@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas.common import APIModel
 
@@ -47,8 +47,8 @@ class CompetitorRead(APIModel):
     has_remote_monitoring: bool | None = None
     has_video_camera: bool | None = None
     description: str | None = None
-    strengths: list[str] | None = None
-    weaknesses: list[str] | None = None
+    strengths: list[str] = []
+    weaknesses: list[str] = []
     base_url: str | None = None
     sitemap_url: str | None = None
     crawl_config: dict | None = None
@@ -56,11 +56,18 @@ class CompetitorRead(APIModel):
     crawl_error: str | None = None
     last_crawled_at: datetime | None = None
     articles_count: int = 0
-    dealers: list[dict] | None = None
+    dealers: list[dict] = []
     models: list[CompetitorModelRead] = []
     problems: list[CompetitorProblemRead] = []
     created_at: datetime
     updated_at: datetime | None = None
+
+    @field_validator("strengths", "weaknesses", "dealers", mode="before")
+    @classmethod
+    def ensure_not_none(cls, v):
+        if v is None:
+            return []
+        return v
 
 
 class CompetitorCreate(APIModel):

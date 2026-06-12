@@ -13,6 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 import {
   BarChart,
@@ -88,11 +89,16 @@ const BATCH_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["dashboard", "stats"],
     queryFn: fetchDashboardStats,
     refetchInterval: 30000,
+    retry: 1,
   });
+
+  if (error && !isLoading) {
+    return <ErrorState message="Не удалось загрузить данные дашборда" onRetry={() => refetch()} />;
+  }
 
   if (isLoading || !data) {
     return <DashboardSkeleton />;

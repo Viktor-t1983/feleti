@@ -20,6 +20,7 @@ import {
   Type,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 
 /* ─── Types ─── */
@@ -177,7 +178,9 @@ export default function KnowledgeLibrary() {
             <span>Все статьи</span>
           </button>
           <div className="h-px bg-white/5 my-1" />
-          {treeQuery.isLoading ? (
+          {treeQuery.error ? (
+            <p className="text-xs text-red-400 px-2">Ошибка загрузки дерева</p>
+          ) : treeQuery.isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="h-7 animate-pulse rounded-lg bg-white/5 ml-3" style={{ width: `${60 + Math.random() * 30}%` }} />
             ))
@@ -225,7 +228,9 @@ export default function KnowledgeLibrary() {
 
         {/* Articles grid */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          {articlesQuery.isLoading ? (
+          {articlesQuery.error ? (
+            <ErrorState message="Ошибка загрузки статей" onRetry={() => articlesQuery.refetch()} />
+          ) : articlesQuery.isLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-36 animate-pulse rounded-2xl bg-white/5" />

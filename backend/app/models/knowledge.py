@@ -91,6 +91,9 @@ class KnowledgeArticle(Base):
     analysis: Mapped["ArticleAnalysis | None"] = relationship(
         back_populates="article", uselist=False, lazy="joined"
     )
+    topics: Mapped[list["KnowledgeTopic"]] = relationship(
+        secondary="article_topics", back_populates="articles", lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return f"<KnowledgeArticle {self.id} {self.title[:50]}>"
@@ -156,3 +159,68 @@ class ArticleAnalysis(Base):
 
     def __repr__(self) -> str:
         return f"<ArticleAnalysis {self.id} article={self.article_id} status={self.status}>"
+
+
+class KnowledgeTopic(Base):
+    """Семантический узел дерева знаний (таксономия).
+
+    Хранит иерархию: /Технологии/Засол/Мокрый посол
+    Позволяет группировать статьи по тематикам и делать tree-aware RAG.
+    """
+
+    __tablename__ = "knowledge_topics"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    slug: Mapped[str] = mapped_column(
+        String(200), unique=True, nullable=False, index=True
+    )
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    path: Mapped[str] = mapped_column(
+        String(500), nullable=False
+    )  # materialized path: "/Технологии/Засол"
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("knowledge_topics.id", ondelete="CASCADE"), nullable=True
+    )
+    level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    parent: Mapped["KnowledgeTopic | None"] = relationship(
+        "KnowledgeTopic",
+        remote_side="KnowledgeTopic.id",
+        back_populates="children",
+        lazy="joined",
+    )
+    children: Mapped[list["KnowledgeTopic"]] = relationship(
+        "KnowledgeTopic",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    articles: Mapped[list["KnowledgeArticle"]] = relationship(
+        secondary="article_topics", back_populates="topics", lazy="selectin"
+    )
+
+    def __repr__(self) -> str:
+        return f"<KnowledgeTopic {self.id} {self.path}>"
+
+
+class ArticleTopic(Base):
+    """Связь статья-тема (many-to-many)."""
+
+    __tablename__ = "article_topics"
+
+    article_id: Mapped[int] = mapped_column(
+        ForeignKey("knowledge_articles.id", ondelete="CASCADE"), primary_key=True
+    )
+    topic_id: Mapped[int] = mapped_column(
+        ForeignKey("knowledge_topics.id", ondelete="CASCADE"), primary_key=True
+    )

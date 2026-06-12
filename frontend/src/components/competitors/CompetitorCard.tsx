@@ -24,7 +24,8 @@ const COUNTRY_FLAGS: Record<string, string> = {
   "Словения": "🇸🇮",
 };
 
-function getSegmentStyle(segment: string) {
+function getSegmentStyle(segment: string | null | undefined) {
+  if (!segment) return { bg: "bg-white/5", text: "text-muted-foreground", label: "—" };
   const key = segment.toLowerCase().split("/")[0].trim();
   return SEGMENT_STYLES[key] || { bg: "bg-white/5", text: "text-muted-foreground", label: segment };
 }
@@ -158,10 +159,10 @@ export function CompetitorCard({ competitor }: CompetitorCardProps) {
                 {dealerCount}
               </span>
             )}
-            {competitor.problems.length > 0 && (
+            {(competitor.problems?.length || 0) > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-400">
                 <AlertTriangle className="h-3 w-3" />
-                {competitor.problems.length}
+                {competitor.problems?.length || 0}
               </span>
             )}
             <motion.div

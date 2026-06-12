@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { fetchCompetitorsAdmin, updateCompetitor, deleteCompetitor } from "@/lib/api/admin-competitors";
 import type { Competitor } from "@/components/competitors/CompetitorCard";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 const SEGMENT_COLORS: Record<string, string> = {
   premium: "text-amber-400 bg-amber-500/10",
@@ -43,6 +44,7 @@ export function AdminCompetitorsTab() {
   const [form, setForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Competitor | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,12 +106,17 @@ export function AdminCompetitorsTab() {
   };
 
   const handleDelete = async (c: Competitor) => {
-    if (!confirm(`Удалить конкурента ${c.name}? Это действие необратимо.`)) return;
+    setDeleteTarget(c);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteCompetitor(c.id);
+      await deleteCompetitor(deleteTarget.id);
       await load();
+      setDeleteTarget(null);
     } catch {
-      /* ignore */
+      setDeleteTarget(null);
     }
   };
 
@@ -320,6 +327,20 @@ export function AdminCompetitorsTab() {
           ))
         )}
       </div>
+
+      <ConfirmationModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Удаление конкурента"
+        message={
+          deleteTarget
+            ? `Вы уверены, что хотите удалить конкурента ${deleteTarget.name}? Это действие необратимо.`
+            : ""
+        }
+        confirmLabel="Удалить"
+        variant="danger"
+      />
     </div>
   );
 }

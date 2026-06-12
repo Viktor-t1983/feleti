@@ -130,7 +130,7 @@ function OverviewTab({ competitor }: { competitor: Competitor }) {
             Сильные стороны
           </h4>
           <ul className="space-y-2">
-            {competitor.strengths.map((s, i) => (
+            {(competitor.strengths || []).map((s, i) => (
               <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full bg-emerald-400" />
                 {s}
@@ -145,7 +145,7 @@ function OverviewTab({ competitor }: { competitor: Competitor }) {
             Слабые стороны
           </h4>
           <ul className="space-y-2">
-            {competitor.weaknesses.map((w, i) => (
+            {(competitor.weaknesses || []).map((w, i) => (
               <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 rounded-full bg-red-400" />
                 {w}
@@ -204,7 +204,7 @@ function DealersTab({ competitor }: { competitor: Competitor }) {
 function ModelsTab({ competitor }: { competitor: Competitor }) {
   return (
     <div className="space-y-3">
-      {competitor.models.map((model, i) => (
+      {(competitor.models || []).map((model, i) => (
         <div key={i} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
           <div className="flex items-start justify-between mb-3">
             <h4 className="font-medium text-white">{model.name}</h4>
@@ -267,7 +267,7 @@ function ProblemsTab({ competitor }: { competitor: Competitor }) {
 
   return (
     <div className="space-y-3">
-      {competitor.problems.map((problem, i) => (
+      {(competitor.problems || []).map((problem, i) => (
         <div
           key={i}
           className={`rounded-xl border border-white/5 border-l-4 bg-white/[0.02] p-4 ${severityStyles[problem.severity]}`}

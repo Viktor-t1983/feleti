@@ -8,6 +8,7 @@ import {
   FileEdit,
   Maximize2,
   Minimize2,
+  Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -27,7 +28,7 @@ export default function ChamberHmiPage() {
   const chamberId = params.id as string;
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const { connected, hmi, history } = useChamberTelemetry(chamberId);
+  const { connected, reconnecting, reconnectAttempt, hmi, history } = useChamberTelemetry(chamberId);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -83,6 +84,12 @@ export default function ChamberHmiPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              href={`/chambers/${chamberId}/edit`}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5 text-sm text-muted-foreground hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+            </Link>
             <div className="flex gap-1 rounded-xl border border-white/5 bg-white/[0.02] p-1">
               {TABS.map((tab) => {
                 const isActive = activeTab === tab.id;
@@ -153,6 +160,8 @@ export default function ChamberHmiPage() {
             <HmiDashboard
               chamberId={chamberId}
               connected={connected}
+              reconnecting={reconnecting}
+              reconnectAttempt={reconnectAttempt}
               hmi={hmi}
               history={history}
             />

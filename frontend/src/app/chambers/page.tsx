@@ -9,8 +9,10 @@ import {
   Droplets,
   ArrowRight,
   Thermometer,
+  Plus,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { ErrorState } from "@/components/shared/ErrorState";
 import Link from "next/link";
 
 interface Manufacturer {
@@ -88,7 +90,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ChambersPage() {
-  const { data: chambersData, isLoading } = useQuery({
+  const { data: chambersData, isLoading, error, refetch } = useQuery({
     queryKey: ["chambers"],
     queryFn: fetchChambers,
   });
@@ -104,6 +106,10 @@ export default function ChambersPage() {
   (activeBatches || []).forEach((b) => {
     if (b.chamber_id) batchMap.set(b.chamber_id, b);
   });
+
+  if (error && !isLoading) {
+    return <ErrorState message="Не удалось загрузить список камер" onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return <ChambersSkeleton />;
@@ -123,6 +129,13 @@ export default function ChambersPage() {
             )}
           </p>
         </div>
+        <Link
+          href="/chambers/new"
+          className="inline-flex items-center gap-2 rounded-xl bg-feleti-gold px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-feleti-gold/90"
+        >
+          <Plus className="h-4 w-4" />
+          Новая
+        </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -138,6 +151,13 @@ export default function ChambersPage() {
           );
         })}
       </div>
+
+      {chambers.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-white/[0.02] py-16">
+          <Flame className="h-12 w-12 text-muted-foreground/30" />
+          <p className="mt-4 text-muted-foreground">Камеры не найдены</p>
+        </div>
+      )}
     </div>
   );
 }
