@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -17,7 +18,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import AsyncSessionLocal
+from app.models.ai_settings import AISettings
 from app.models.knowledge import ArticleTopic, KnowledgeArticle
+from app.services.ai_service import AIService
 from app.services.knowledge_pipeline import (
     CrawlResult,
     ExtractedData,
@@ -149,7 +152,63 @@ class KnowledgeCollector:
         self._notify(job)
 
     async def _resolve_sources(self, job: CollectionJob) -> list[tuple[SourceType, str]]:
-        """Определить URL для сбора по запросу."""
+        """Определить URL для сбора — через LLM если доступен, иначе rule-based."""
+        llm_sources = await self._resolve_sources_llm(job)
+        if llm_sources:
+            return llm_sources
+        return await self._resolve_sources_rule(job)
+
+    async def _resolve_sources_llm(self, job: CollectionJob) -> list[tuple[SourceType, str]]:
+        """Использовать LLM для определения релевантных источников."""
+        try:
+            async with AsyncSessionLocal() as db:
+                settings = await AIService.get_settings(db)
+                if not settings.enabled:
+                    return []
+                service = AIService(settings)
+
+            prompt = (
+                "Ты — эксперт по копчению. Определи, какие сайты искать по запросу пользователя.\n"
+                "Верни JSON-массив объектов с полями: source_type (web/youtube), url (полный URL), reason (почему).\n"
+                "Доступные сайты:\n"
+                "- vseokopchenii.ru — всё о копчении (базовый)\n"
+                "- smokehouse.ru — оборудование и технологии\n"
+                "- vniro.ru — ВНИРО, технологии переработки рыбы\n"
+                "- vniimp.ru — ВНИИМП, мясопереработка\n"
+                "- feleti.ru — FELETI, коптильные камеры\n"
+                "- eda.ru — рецепты\n"
+                "- meatclub.ru — форум мясопереработчиков\n"
+                "- youtube.com — видео по теме\n\n"
+                f"Запрос: {job.query}\n\n"
+                "Ответь ТОЛЬКО JSON, без пояснений."
+            )
+            answer = ""
+            async for token in service.ask_stream(prompt):
+                answer += token
+
+            import re
+            answer = answer.strip()
+            if answer.startswith("```"):
+                answer = answer.split("\n", 1)[-1]
+                answer = answer.rsplit("```", 1)[0]
+            sources = json.loads(answer)
+            if not isinstance(sources, list):
+                return []
+
+            results: list[tuple[SourceType, str]] = []
+            for s in sources:
+                st = s.get("source_type", "web")
+                url = s.get("url", "")
+                if st in ("web", "youtube") and url:
+                    st_enum = SourceType.WEB if st == "web" else SourceType.YOUTUBE
+                    results.append((st_enum, url))
+            return results[:job.max_results]
+        except Exception as e:
+            logger.warning("LLM source resolution failed, falling back: %s", e)
+            return []
+
+    async def _resolve_sources_rule(self, job: CollectionJob) -> list[tuple[SourceType, str]]:
+        """Rule-based определение источников (fallback)."""
         results: list[tuple[SourceType, str]] = []
         q = job.query.strip().lower()
 
