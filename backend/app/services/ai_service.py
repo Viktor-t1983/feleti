@@ -27,29 +27,52 @@ ANALYZE_PROMPT = """Ты — каталогизатор статей о копч
 
 Схема JSON:
 {
-  "products": ["строка"],
-  "technologies": ["строка"],
-  "problems": [{"title": "строка", "description": "строка", "severity": "high|medium|low"}],
-  "recipes": [{"name": "строка", "ingredients": ["строка"], "steps": ["строка"]}],
-  "equipment": [{"name": "строка", "specs": {"ключ": "значение"}}],
+  "category": "theory|recipe|troubleshooting|regulation|comparison|review|news|guide",
+  "topic_path": "/Категория/Подкатегория",
   "key_insights": ["строка"],
+  "problems": [{"title": "строка", "description": "строка", "severity": "high|medium|low"}],
   "competitor_mentions": [{"name": "строка", "products": ["строка"], "pricing": "строка"}],
   "target_markets": ["строка"],
-  "category": "рецепт|оборудование|технология|новости|кейс|другое",
-  "topic_path": "/Категория/Подкатегория"
+
+  "facts": [
+    {
+      "subject": "<название продукта/технологии/оборудования из списка>",
+      "subject_type": "product|brine|chamber|technology|ingredient|regulation",
+      "predicate": "uses_brine|uses_equipment|uses_technology|has_parameter|regulated_by|has_category|contains|derived_from|shelf_life|storage_condition|process_step",
+      "object": "<название или значение>",
+      "object_type": "product|brine|chamber|technology|regulation|ingredient|literal",
+      "params": { },
+      "source_text": "<точная цитата из текста, подтверждающая факт>",
+      "confidence": 0.95
+    }
+  ]
 }
 
+Значения predicate:
+  - uses_brine: продукт использует рассол (object — название рассола)
+  - uses_equipment: продукт использует камеру/оборудование
+  - uses_technology: продукт использует технологию (горячее/холодное/электростатическое копчение)
+  - has_parameter: параметр (temp, time, concentration — передай в params)
+  - regulated_by: регулируется ГОСТ/ТУ (object — номер или название)
+  - has_category: категоризация (object — название категории)
+  - contains: ингредиент в составе
+  - derived_from: из какого сырья сделан
+  - shelf_life: срок годности (params: {"days": число})
+  - storage_condition: условия хранения (params: {"temp_min": .., "temp_max": .., "humidity": ..})
+  - process_step: технологическая операция
+
 Правила:
+- Используй ТОЛЬКО названия продуктов, рассолов, камер из списка СПРАВОЧНЫЕ ДАННЫЕ (если он передан)
+- Если подходящего названия в списке нет — используй точное название из текста
+- source_text — обязательное поле, точная цитата. Без выдумок.
+- Если факт не подтверждён цитатой — не включай его
+- category — строго одно значение из списка
 - topic_path — иерархический путь на русском, например:
   /Технологии/Засол/Мокрый посол
   /Оборудование/Камеры/Промышленные
   /Рецепты/Свинина/Корейка
-  /Сырьё/Оболочки/Черева
-  /Бизнес/Франшиза
-  Даже короткие посты (анонсы, новости, вопросы) старайся категоризировать.
-  Если текст про копчение, оборудование, мясопереработку, рецепты — НЕ ставь "/Другое".
-  "/Другое" — только если текст явно не относится к пищевым технологиям (например, металлообработка, станки, ЧПУ, общие разговоры не по теме).
-- category — строго одно значение из списка, ТОЛЬКО русскими буквами
+  Если текст про копчение, оборудование, мясопереработку — НЕ ставь "/Другое".
+  "/Другое" — только если текст явно не к пищевым технологиям.
 - Если поля нет в тексте — пустой массив []. Никакого текста кроме JSON.
 """
 
@@ -165,9 +188,11 @@ class AIService:
     async def analyze(self, text: str) -> dict[str, Any]:
         """Проанализировать текст и извлечь структуру."""
         system = SYSTEM_PROMPT_DEFAULT
+        # text уже содержит structured context (products, chambers, brines),
+        # поэтому ограничение увеличено до 20000 символов
         messages = [
             {"role": "system", "content": system},
-            {"role": "user", "content": ANALYZE_PROMPT + text[:15000]},
+            {"role": "user", "content": ANALYZE_PROMPT + text[:20000]},
         ]
         data = await self.chat(messages)
         content = data["choices"][0]["message"]["content"]

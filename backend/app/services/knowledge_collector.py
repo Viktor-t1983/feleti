@@ -38,15 +38,17 @@ logger = logging.getLogger(__name__)
 
 # Репутация источников (fallback, если БД недоступна)
 FALLBACK_SOURCE_REPUTATION: dict[str, int] = {
+    "ijiza.ru": 5,
+    "varmen.pro": 5,
+    "vniro.ru": 4,
+    "vniimp.ru": 4,
     "vseokopchenii.ru": 3,
     "smokehouse.ru": 3,
-    "vniro.ru": 3,
-    "vniimp.ru": 3,
     "feleti.ru": 3,
-    "eda.ru": 2,
-    "povarenok.ru": 2,
     "meatclub.ru": 2,
     "fishnews.ru": 2,
+    "eda.ru": 1,
+    "povarenok.ru": 1,
     "youtube.com": 1,
     "youtu.be": 1,
     "habr.com": 1,
@@ -241,13 +243,15 @@ class KnowledgeCollector:
                 "Ты — эксперт по копчению. Определи, какие сайты искать по запросу пользователя.\n"
                 "Верни JSON-массив объектов с полями: source_type (web/youtube), url (полный URL), reason (почему).\n"
                 "Доступные сайты:\n"
-                "- vseokopchenii.ru — всё о копчении (базовый)\n"
-                "- smokehouse.ru — оборудование и технологии\n"
+                "- ijiza.ru — Ижица, коптильные камеры, рецепты, технологии (приоритет!)\n"
+                "- varmen.pro — промышленные термокамеры Varmen\n"
                 "- vniro.ru — ВНИРО, технологии переработки рыбы\n"
                 "- vniimp.ru — ВНИИМП, мясопереработка\n"
+                "- smokehouse.ru — оборудование и технологии\n"
+                "- vseokopchenii.ru — всё о копчении (базовый)\n"
                 "- feleti.ru — FELETI, коптильные камеры\n"
-                "- eda.ru — рецепты\n"
                 "- meatclub.ru — форум мясопереработчиков\n"
+                "- eda.ru — рецепты\n"
                 "- youtube.com — видео по теме\n\n"
                 f"Запрос: {job.query}\n\n"
                 "Ответь ТОЛЬКО JSON, без пояснений."
@@ -284,16 +288,18 @@ class KnowledgeCollector:
 
         if SourceType.WEB in job.source_types:
             sites = [
+                f"https://ijiza.ru/?s={q}",
+                f"https://varmen.pro/search?q={q}",
                 f"https://vseokopchenii.ru/?s={q}",
                 f"https://smokehouse.ru/?s={q}",
             ]
-            if "рыб" in q or "осётр" in q or "скумбр" in q:
+            if "рыб" in q or "осётр" in q or "скумбр" in q or "лосос" in q:
                 sites.append(f"https://vniro.ru/search?q={q}")
-            if "мяс" in q or "свин" in q or "говяд" in q:
+            if "мяс" in q or "свин" in q or "говяд" in q or "колбас" in q:
                 sites.append(f"https://vniimp.ru/search?q={q}")
-            if "коптильн" in q or "камер" in q:
+            if "коптильн" in q or "камер" in q or "дымогенератор" in q:
                 sites.append(f"https://feleti.ru/search?q={q}")
-            if "рецепт" in q:
+            if "рецепт" in q or "тузлук" in q or "посол" in q:
                 sites.append(f"https://eda.ru/search?q={q}")
             if "проблем" in q or "гореч" in q or "плесен" in q:
                 sites.append(f"https://meatclub.ru/search?q={q}")

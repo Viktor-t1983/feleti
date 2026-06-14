@@ -17,16 +17,18 @@ if TYPE_CHECKING:
 
 
 class ProductCategory(str, PyEnum):
-    SAUSAGE_BOILD = "колбаса вареная"
-    SAUSAGE_SEMI_SMOKED = "колбаса полукопченая"
-    SAUSAGE_RAW_SMOKED = "колбаса сырокопченая"
-    MEAT = "мясо"
-    POULTRY = "птица"
+    FISH = "рыба"
     FISH_HOT = "рыба горячего копчения"
     FISH_COLD = "рыба холодного копчения"
     FISH_ELECTRO = "рыба электростатического копчения"
-    CHEESE = "сыр"
+    FISH_SEMI_HOT = "рыба полугорячего копчения"
+    MEAT = "мясо"
+    POULTRY = "птица"
+    SAUSAGE_BOILD = "колбаса вареная"
+    SAUSAGE_SEMI_SMOKED = "колбаса полукопченая"
+    SAUSAGE_RAW_SMOKED = "колбаса сырокопченая"
     SAUSAGE_SALAMI = "колбаса сыровяленая"
+    CHEESE = "сыр"
     BACON = "сало"
     BUTTER = "масло"
     SNACKS = "снеки"
@@ -41,6 +43,10 @@ class Product(Base):
     slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False, index=True)
     category: Mapped[ProductCategory] = mapped_column(
         SAEnum(ProductCategory, name="product_category"), nullable=False, index=True
+    )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True, index=True,
     )
 
     description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
@@ -62,6 +68,12 @@ class Product(Base):
     )
 
     base_recipe: Mapped["Recipe | None"] = relationship(foreign_keys=[base_recipe_id])
+    parent: Mapped["Product | None"] = relationship(
+        "Product", remote_side="Product.id", back_populates="children",
+    )
+    children: Mapped[list["Product"]] = relationship(
+        "Product", back_populates="parent", cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Product {self.id} {self.name}>"

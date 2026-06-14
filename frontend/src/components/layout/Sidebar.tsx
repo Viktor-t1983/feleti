@@ -45,6 +45,7 @@ export function Sidebar() {
     { href: "/knowledge", label: "Знания", icon: Lightbulb },
     { href: "/knowledge/tree", label: "Дерево знаний", icon: GitBranch },
     { href: "/knowledge/sources", label: "Источники", icon: Radio },
+    ...(isAdmin ? [{ href: "/knowledge/facts", label: "Факты", icon: Shield }] : []),
     { href: "/ai", label: "AI-ассистент", icon: Brain },
     { href: "/manufacturers", label: "Производители", icon: Factory },
     { href: "/competitors", label: "Конкуренты", icon: BarChart3 },

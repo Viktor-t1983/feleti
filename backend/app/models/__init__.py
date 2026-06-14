@@ -22,7 +22,7 @@ from app.models.telemetry import TelemetryReading  # noqa: F401, E402
 from app.models.user import User  # noqa: F401, E402
 from app.models.ai_settings import AISettings  # noqa: F401, E402
 from app.models.source_reputation import SourceReputation  # noqa: F401, E402
-from app.models.entity_link import EntityLink  # noqa: F401, E402
+from app.models.knowledge_fact import KnowledgeFact, KnowledgeChunk  # noqa: F401, E402  # noqa: F401, E402
 
 __all__ = [
     "Base",
@@ -49,5 +49,4 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "SourceReputation",
-    "EntityLink",
 ]

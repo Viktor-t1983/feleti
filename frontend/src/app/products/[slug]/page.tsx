@@ -11,10 +11,12 @@ import {
   BookOpen,
   FileText,
   Pencil,
+  Brain,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ProductProfile } from "@/components/products/ProductProfile";
 
 interface ProductDetail {
   id: number;
@@ -179,6 +181,19 @@ export default function ProductDetailPage() {
           </Link>
         </motion.div>
       )}
+
+      {/* Knowledge Profile */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <Brain className="h-5 w-5 text-feleti-gold" />
+          <h2 className="text-lg font-semibold text-white">База знаний</h2>
+        </div>
+        <ProductProfile productId={product.id} />
+      </motion.div>
     </div>
   );
 }

@@ -8,18 +8,18 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Annotated
-
+from datetime import datetime
 from enum import Enum
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DBSession
 from app.models.audit import AuditAction
-from app.models.entity_link import EntityLink
 from app.models.knowledge import (
     ArticleAnalysis,
     ArticleCategory,
@@ -303,6 +303,143 @@ async def get_topic_tree(
             tree.append(node)
 
     return tree
+
+
+# ─── Fact Verification (Phase 5) — MUST be BEFORE /{article_id} ─────────────
+
+
+class FactUpdateStatus(BaseModel):
+    status: Literal["confirmed", "deprecated"]
+
+
+@router.get(
+    "/facts",
+    summary="Список фактов для ревью (candidate, сортировка по confidence)",
+)
+async def list_facts_for_review(
+    db: DBSession,
+    _user: CurrentUser,
+    fstatus: Annotated[str | None, Query(alias="status")] = None,
+    predicate: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[dict]:
+    from app.models.knowledge_fact import KnowledgeFact, FactStatus
+
+    stmt = select(KnowledgeFact).order_by(KnowledgeFact.confidence.asc(), KnowledgeFact.created_at.desc())
+    if fstatus:
+        try:
+            stmt = stmt.where(KnowledgeFact.status == FactStatus(fstatus))
+        except ValueError:
+            pass
+    if predicate:
+        stmt = stmt.where(KnowledgeFact.predicate == predicate)
+    stmt = stmt.limit(limit)
+    rows = (await db.scalars(stmt)).all()
+    return [
+        {
+            "id": f.id,
+            "subject_name": f.subject_name,
+            "subject_type": f.subject_type.value if hasattr(f.subject_type, "value") else str(f.subject_type),
+            "predicate": f.predicate.value if hasattr(f.predicate, "value") else str(f.predicate),
+            "object_name": f.object_name,
+            "object_type": f.object_type.value if hasattr(f.object_type, "value") else str(f.object_type),
+            "confidence": f.confidence,
+            "status": f.status.value if hasattr(f.status, "value") else str(f.status),
+            "source_text": f.source_text,
+            "article_id": f.article_id,
+            "chunk_id": f.chunk_id,
+            "created_at": f.created_at.isoformat(),
+        }
+        for f in rows
+    ]
+
+
+@router.patch(
+    "/facts/{fact_id}/status",
+    summary="Подтвердить или отклонить факт",
+)
+async def review_fact(
+    fact_id: int,
+    payload: FactUpdateStatus,
+    db: DBSession,
+    _user: CurrentUser,
+) -> dict:
+    from app.services.verification import confirm_fact, reject_fact
+
+    if payload.status == "confirmed":
+        fact = await confirm_fact(db, fact_id)
+    elif payload.status == "deprecated":
+        fact = await reject_fact(db, fact_id)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    if not fact:
+        raise HTTPException(status_code=404, detail="Fact not found")
+
+    await db.commit()
+    await db.refresh(fact)
+    return {
+        "id": fact.id,
+        "subject_name": fact.subject_name,
+        "subject_type": fact.subject_type.value if hasattr(fact.subject_type, "value") else str(fact.subject_type),
+        "predicate": fact.predicate.value if hasattr(fact.predicate, "value") else str(fact.predicate),
+        "object_name": fact.object_name,
+        "object_type": fact.object_type.value if hasattr(fact.object_type, "value") else str(fact.object_type),
+        "confidence": fact.confidence,
+        "status": fact.status.value if hasattr(fact.status, "value") else str(fact.status),
+        "source_text": fact.source_text,
+        "article_id": fact.article_id,
+        "chunk_id": fact.chunk_id,
+        "created_at": fact.created_at.isoformat(),
+    }
+
+
+class VerificationReport(BaseModel):
+    duplicates: list[dict] = []
+    contradictions: list[dict] = []
+    auto_result: dict = {}
+
+
+@router.get(
+    "/verify/report",
+    response_model=VerificationReport,
+    summary="Отчёт о верификации: дубликаты + противоречия",
+)
+async def verification_report(
+    db: DBSession,
+    _user: CurrentUser,
+) -> VerificationReport:
+    from app.services.verification import find_duplicates, find_contradictions
+
+    duplicates = await find_duplicates(db)
+    contradictions = await find_contradictions(db)
+    return VerificationReport(
+        duplicates=duplicates,
+        contradictions=contradictions,
+    )
+
+
+@router.post(
+    "/verify/auto",
+    response_model=VerificationReport,
+    summary="Запустить авто-верификацию",
+)
+async def run_auto_verify(
+    db: DBSession,
+    _user: CurrentUser,
+) -> VerificationReport:
+    from app.services.verification import auto_verify, find_duplicates, find_contradictions
+
+    auto_result = await auto_verify(db)
+    await db.commit()
+
+    duplicates = await find_duplicates(db)
+    contradictions = await find_contradictions(db)
+    return VerificationReport(
+        duplicates=duplicates,
+        contradictions=contradictions,
+        auto_result=auto_result,
+    )
 
 
 @router.get(
@@ -985,46 +1122,36 @@ async def set_article_topics(
 @router.get(
     "/{article_id}/graph",
     response_model=list[dict],
-    summary="Граф знаний статьи — связанные сущности",
+    summary="Граф знаний статьи — факты и связанные сущности",
 )
 async def get_article_graph(
     article_id: int,
     db: DBSession,
     _user: CurrentUser,
 ) -> list[dict]:
-    """Вернуть все EntityLink для статьи + резолвить имена target-сущностей."""
+    """Вернуть все KnowledgeFact для статьи — заменяет EntityLink."""
+    from app.models.knowledge_fact import KnowledgeFact
+
     rows = (
         await db.execute(
-            select(EntityLink).where(
-                EntityLink.source_type == "article",
-                EntityLink.source_id == article_id,
-            )
+            select(KnowledgeFact).where(
+                KnowledgeFact.article_id == article_id,
+            ).order_by(KnowledgeFact.predicate)
         )
     ).scalars().all()
 
     result = []
-    for link in rows:
-        target_name = None
-        if link.target_type == "product":
-            from app.models.product import Product
-            obj = await db.get(Product, link.target_id)
-            target_name = obj.name if obj else None
-        elif link.target_type == "competitor":
-            from app.models.competitor import Competitor
-            obj = await db.get(Competitor, link.target_id)
-            target_name = obj.name if obj else None
-        elif link.target_type == "manufacturer":
-            from app.models.manufacturer import Manufacturer
-            obj = await db.get(Manufacturer, link.target_id)
-            target_name = obj.name if obj else None
-
+    for f in rows:
         result.append({
-            "id": link.id,
-            "target_type": link.target_type,
-            "target_id": link.target_id,
-            "target_name": target_name,
-            "relation": link.relation,
-            "created_at": link.created_at.isoformat(),
+            "id": f.id,
+            "subject": f.subject_name,
+            "subject_type": f.subject_type.value if hasattr(f.subject_type, "value") else str(f.subject_type),
+            "predicate": f.predicate.value if hasattr(f.predicate, "value") else str(f.predicate),
+            "object": f.object_name,
+            "object_type": f.object_type.value if hasattr(f.object_type, "value") else str(f.object_type),
+            "source_text": f.source_text,
+            "confidence": f.confidence,
+            "created_at": f.created_at.isoformat(),
         })
 
     return result

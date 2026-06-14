@@ -1,10 +1,11 @@
-"""CRUD продуктов (изделий)."""
+"""CRUD продуктов (изделий) + Product Profile."""
 
 from __future__ import annotations
 
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 
@@ -15,8 +16,74 @@ from app.schemas.common import Page, PageParams
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
 from app.services import audit
 from app.services.pagination import paginate
+from app.services.product_profile import build_profile_facts
 
 router = APIRouter()
+
+
+class FactItem(BaseModel):
+    object_name: str
+    object_type: str
+    predicate: str
+    article_id: int
+    source_text: str | None = None
+    confidence: float = 0.0
+    params: dict = Field(default_factory=dict)
+    inherited_from: str | None = None
+    chunk_id: int | None = None
+
+
+class FactGroup(BaseModel):
+    predicate: str
+    label: str
+    facts: list[FactItem]
+
+
+class ProductProfile(BaseModel):
+    id: int
+    name: str
+    slug: str
+    category: str
+    gost: str | None = None
+    parent: ProductRead | None = None
+    children: list[ProductRead] = []
+    fact_groups: list[FactGroup] = []
+
+
+@router.get(
+    "/{product_id}/profile",
+    response_model=ProductProfile,
+    summary="Product Profile — агрегированные факты",
+)
+async def product_profile(product_id: int, db: DBSession, _user: CurrentUser) -> ProductProfile:
+    obj = await db.scalar(select(Product).where(Product.id == product_id))
+    if obj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Продукт не найден")
+
+    parent: ProductRead | None = None
+    if obj.parent_id:
+        p = await db.get(Product, obj.parent_id)
+        if p:
+            parent = ProductRead.model_validate(p)
+
+    children: list[ProductRead] = []
+    for c in (await db.scalars(select(Product).where(Product.parent_id == product_id))).all():
+        children.append(ProductRead.model_validate(c))
+
+    groups = await build_profile_facts(product_id, db)
+
+    return ProductProfile(
+        id=obj.id,
+        name=obj.name,
+        slug=obj.slug,
+        category=obj.category.value if hasattr(obj.category, "value") else str(obj.category),
+        gost=obj.gost,
+        parent=parent,
+        children=children,
+        fact_groups=[
+            FactGroup.model_validate(g.to_dict()) for g in groups
+        ],
+    )
 
 
 @router.get("", response_model=Page[ProductRead], summary="Список продуктов")

@@ -9,13 +9,16 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 
 from app.core.deps import CurrentUser, DBSession
-from app.models.chamber import Chamber
 from app.models.product import Product
 from app.schemas.common import APIModel
+from app.models.chamber import Chamber, ChamberType
+from app.services.compatibility_knowledge import (
+    get_compatible_brines_for_product_knowledge,
+    get_compatible_chambers_for_product_knowledge,
+    get_reference_recipes,
+)
 from app.services.compatibility_matrix import (
     chamber_temp_range,
-    get_compatible_brines_for_product,
-    get_reference_recipes,
     is_chamber_compatible,
     recommended_brine_methods,
 )
@@ -30,6 +33,7 @@ class ChamberCompatibilityOut(APIModel):
     manufacturer: str | None = None
     compatible: bool
     temp_range: tuple[float, float] | None = None
+    known_from_facts: bool = False
 
 
 class BrineCompatibilityOut(APIModel):
@@ -39,6 +43,7 @@ class BrineCompatibilityOut(APIModel):
     salt_percent: float
     duration_hours: float
     recommended: bool
+    known_from_facts: bool = False
 
 
 class ProductAnalysis(APIModel):
@@ -69,25 +74,41 @@ async def compatibility_analysis(
     category = product.category if product else None
     preferred_methods = recommended_brine_methods(category) if category else []
 
-    # All chambers with compatibility
+    # Chambers — knowledge-aware
     chambers_out: list[ChamberCompatibilityOut] = []
-    all_chambers = (await db.scalars(select(Chamber))).all()
-    for ch in all_chambers:
-        compatible = is_chamber_compatible(category, ch.type) if category else False
-        tr = chamber_temp_range(ch.type)
+    ch_data = await get_compatible_chambers_for_product_knowledge(db, product_id)
+    for ch in ch_data.get("compatible", []):
+        tr = None
+        try:
+            ct = ChamberType(ch["type"])
+            tr_raw = chamber_temp_range(ct)
+            tr = (tr_raw[0], tr_raw[1])
+        except (ValueError, KeyError):
+            pass
         chambers_out.append(ChamberCompatibilityOut(
-            id=ch.id,
-            model=ch.model,
-            type=ch.type.value,
-            manufacturer=ch.manufacturer.name if ch.manufacturer else None,
-            compatible=compatible,
-            temp_range=(tr[0], tr[1]) if tr else None,
+            id=ch["id"],
+            model=ch["model"],
+            type=ch["type"],
+            manufacturer=ch["manufacturer"],
+            compatible=True,
+            temp_range=tr,
+            known_from_facts=ch.get("known_from_facts", False),
+        ))
+    for ch in ch_data.get("incompatible", []):
+        chambers_out.append(ChamberCompatibilityOut(
+            id=ch["id"],
+            model=ch["model"],
+            type=ch["type"],
+            manufacturer=ch["manufacturer"],
+            compatible=False,
+            temp_range=None,
+            known_from_facts=False,
         ))
 
-    # Brines
+    # Brines — knowledge-aware
     brines_out: list[BrineCompatibilityOut] = []
     if category:
-        brine_data = await get_compatible_brines_for_product(db, product_id)
+        brine_data = await get_compatible_brines_for_product_knowledge(db, product_id)
         for b in brine_data.get("recommended", []):
             brines_out.append(BrineCompatibilityOut(**b, recommended=True))
         for b in brine_data.get("other", []):

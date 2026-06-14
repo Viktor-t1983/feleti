@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import select, func
 
 from app.core.deps import CurrentUser, DBSession
@@ -300,4 +300,123 @@ async def api_schedule_info(
     return {
         "default_queries": DEFAULT_COLLECT_QUERIES,
         "beat_schedule": schedule_info,
+    }
+
+
+@router.post(
+    "/upload/pdf",
+    summary="Загрузить PDF-файл книги/каталога",
+)
+async def upload_pdf(
+    db: DBSession,
+    _user: CurrentUser,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    category: str = Form("theory"),
+) -> dict:
+    """Загрузить PDF, распарсить и создать статью в базе знаний."""
+    import uuid
+    from pathlib import Path
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    # Сохраняем файл
+    upload_dir = Path("uploads/pdf")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    unique_name = f"{uuid.uuid4().hex}_{file.filename}"
+    filepath = upload_dir / unique_name
+
+    content = await file.read()
+    if len(content) > 100 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (>100 MB)")
+    filepath.write_bytes(content)
+
+    # Парсим
+    from app.services.pdf_parser import PdfParser
+    from app.models.knowledge import ArticleCategory as ArticleCategoryModel
+
+    parser = PdfParser(output_dir=str(upload_dir))
+    result = await parser.parse_file(filepath, source_url=f"upload:{file.filename}")
+
+    if result.errors:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Не удалось распарсить PDF",
+                "errors": result.errors,
+                "filename": file.filename,
+            },
+        )
+
+    # Создаём статью
+    article_title = title or file.filename.replace(".pdf", "").replace("_", " ").replace("-", " ").strip()
+    article_title = article_title[:500]
+
+    try:
+        cat = ArticleCategoryModel(category)
+    except ValueError:
+        cat = ArticleCategoryModel.THEORY
+
+    import re
+    slug_base = re.sub(r"[^\w\s-]", "", article_title.lower().strip())[:200]
+    slug_base = re.sub(r"[\s_]+", "-", slug_base)
+    slug_base = re.sub(r"-+", "-", slug_base) or f"pdf-{uuid.uuid4().hex[:8]}"
+
+    # Гарантируем уникальный slug
+    from sqlalchemy import select, func
+    existing = await db.scalar(select(func.count()).select_from(KnowledgeArticle).where(KnowledgeArticle.slug == slug_base))
+    slug = f"{slug_base}-{uuid.uuid4().hex[:4]}" if existing else slug_base
+
+    article = KnowledgeArticle(
+        title=article_title,
+        slug=slug,
+        body_md=result.raw_text or "",
+        body_html=None,
+        excerpt=(result.raw_text or "")[:500],
+        category=cat,
+        tags=["pdf", "upload"],
+        source_url=f"upload:{file.filename}",
+        is_published=True,
+        version=1,
+        author_id=_user.id,
+    )
+
+    # Добавляем вложение PDF
+    from app.models.knowledge import KnowledgeAttachment, AttachmentKind
+    article.attachments.append(KnowledgeAttachment(
+        file_id=unique_name,
+        kind=AttachmentKind.PDF,
+        filename=file.filename,
+        size_bytes=len(content),
+        mime_type="application/pdf",
+        url=f"/uploads/pdf/{unique_name}",
+    ))
+
+    db.add(article)
+    await db.flush()
+
+    # Запускаем AI-анализ
+    from app.services.article_analyzer import ArticleAnalyzer
+    from app.models.knowledge import ArticleAnalysis
+    try:
+        analyzer = ArticleAnalyzer(db)
+        analysis = await analyzer.analyze(article.id)
+        analysis_status = analysis.status.value if hasattr(analysis.status, "value") else str(analysis.status)
+    except Exception as exc:
+        analysis_status = f"error: {exc}"
+
+    await db.commit()
+    await db.refresh(article)
+
+    return {
+        "status": "ok",
+        "article_id": article.id,
+        "slug": article.slug,
+        "title": article.title,
+        "page_count": result.metadata.get("page_count", 0),
+        "char_count": len(result.raw_text or ""),
+        "parse_errors": result.errors,
+        "analysis_status": analysis_status,
+        "article_url": f"/knowledge/{article.slug}",
     }

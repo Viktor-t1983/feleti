@@ -42,6 +42,16 @@ Thumbs.db
 # Docker
 *.log
 
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Temp / ad-hoc scripts
+audit_articles.py
+check_quality*.py
+test_*.py
+cookies.txt
+
 # Data
 data/postgres/
 data/redis/
